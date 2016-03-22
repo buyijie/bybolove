@@ -30,6 +30,8 @@
 
 1. data_statistics.sh: 用于统计数据规模 (./data_statistics.sh)
 2. data_split.py: 用于切割数据，生成相应的训练测试集，以及label数据 (./data_split.py <number of days for testing>)
+3. usr_song_artist_action_exploration.R  探索原始数据集中数据点的个数，比如用户u对歌曲s有多少天（以天为基本单位）播放（play操作）记录。
+4. usr_song_artist_exploration.R 探索原始数据集中数据点的个数，不区分3种操作（播放，下载，收藏），比如用户u对歌曲s有多少天操作记录。
 
 
 ## 3.2 utils
