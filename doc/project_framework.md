@@ -24,6 +24,7 @@
 > 存放源码
 
 1. logging.conf: python.logging的配置文件
+2. gbdt.py: 用gbdt测试简单模型
 
 ## 3.1 script
 
@@ -38,4 +39,8 @@
 ## 3.2 utils
 
 > 公共的接口，工具
+
+1. data_set.py 数据读取和处理
+2. evaluate.py 评估最终的预测结果
+3. feature_handler.py 一些特征处理，如归一化，离散化
 
