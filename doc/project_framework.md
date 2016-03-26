@@ -18,7 +18,7 @@
 1. project_framework.md 用于描述整个项目框架。
 2. interface.md 用于描述一些公共接口使用。
 3. dataset\_analysis_160322.md 对不同预测方法的可用训练集大小进行了估计。
-
+4. time\_series\_plot_160326.md 每个艺人6个月内的play数量构成的时间序列，帮助观察一些规律
 
 # 3.src
 > 存放源码
@@ -34,6 +34,8 @@
 2. data_split.py: 用于切割数据，生成相应的训练测试集，以及label数据 (./data_split.py <number of days for testing>)
 3. usr_song_artist_action_exploration.R  探索原始数据集中数据点的个数，比如用户u对歌曲s有多少天（以天为基本单位）播放（play操作）记录。
 4. usr_song_artist_exploration.R 探索原始数据集中数据点的个数，不区分3种操作（播放，下载，收藏），比如用户u对歌曲s有多少天操作记录。
+5. TimeSeries_Generation_Artist.R 对每个艺人生成时间序列并保存到csv文件
+6. TimeSeries_Plot.R 对每个艺人绘制时间序列
 
 
 ## 3.2 utils
