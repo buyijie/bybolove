@@ -87,7 +87,8 @@ def ExtractTinyDataForUnitTest(songs_file, action_file, days, singer_be_chosen =
         songs_singers[line[0]] = line[1]
         if line[1] not in singers_set:
             if len(singers_set) >= singer_be_chosen : continue
-        
+        if songs_cnt > 100 : continue 
+
         singers_set.add(line[1])
         songs_set.add(line[0])
         songs_cnt += 1

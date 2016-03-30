@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 
+import os
 import numpy as np
 import pandas as pd
 import logging
@@ -17,6 +18,11 @@ def DateToStr(date) :
     """
     return date.strftime('%Y%m%d')
 
+def StrToDate(str) :
+    """
+    """
+    return datetime.datetime.strptime(str, "%Y%m%d")
+
 class DataSet :
     """
     """
@@ -24,9 +30,8 @@ class DataSet :
         self.type_ = type
         self.Read()
         self.Join()
-        self.GetArtistSet()
         self.GetTimePeriod()
-        self.GetDataStatistics()
+        self.GetData()
 
     def Read(self) :
         """
@@ -35,166 +40,141 @@ class DataSet :
         logging.info('read data from csv file, the type is %s'%self.type_)
         if self.type_ == "unit" :
             self.songs_ = pd.read_csv(ROOT + '/data/mars_tianchi_songs_tiny.csv', header = None)
-            self.action_train_ = pd.read_csv(ROOT + '/data/mars_tianchi_user_actions_tiny_training.csv', header = None)
-            self.action_test_ = pd.read_csv(ROOT + '/data/mars_tianchi_user_actions_tiny_testing.csv', header = None)
+            self.action_ = pd.read_csv(ROOT + '/data/mars_tianchi_user_actions_tiny.csv', header = None)
             self.label_ = pd.read_csv(ROOT + '/data/label_tiny.csv', header = None)
         elif self.type_ == 'full' :
             self.songs_ = pd.read_csv(ROOT + '/data/mars_tianchi_songs.csv', header = None)
-            self.action_train_ = pd.read_csv(ROOT + '/data/mars_tianchi_user_actions_training.csv', header = None)
-            self.action_test_ = pd.read_csv(ROOT + '/data/mars_tianchi_user_actions_testing.csv', header = None)
+            self.action_ = pd.read_csv(ROOT + '/data/mars_tianchi_user_actions.csv', header = None)
             self.label_ = pd.read_csv(ROOT + '/data/label.csv', header = None)
         else:
             logging.error('Invalid type of data set, please choose unit or full')
             exit (1)
 
         self.songs_.columns = ['song_id', 'artist_id', 'publish_time', 'song_init_plays', 'Language', 'Gender']
-        self.action_train_.columns = ['user_id', 'song_id', 'gmt_create', 'action_type', 'Ds']
-        self.action_test_.columns = ['user_id', 'song_id', 'gmt_create', 'action_type', 'Ds']
+        self.action_.columns = ['user_id', 'song_id', 'gmt_create', 'action_type', 'Ds']
         self.label_.columns = ['artist_id', 'Plays', 'Ds']
 
     def Join(self) :
         """
         """
         logging.info("merge action and songs by song_id")
-        self.train_ = pd.merge(self.action_train_, self.songs_, on = 'song_id')
-        self.test_ = pd.merge(self.action_test_, self.songs_, on = 'song_id')
-
-    def GetArtistSet(self) :
-        """
-        """
-        self.artist_set_ = set(self.train_.artist_id.values)
-        logging.info('there are %d artists'%len(self.artist_set_))
+        self.data_ = pd.merge(self.action_, self.songs_, on = 'song_id')
+        self.data_['Ds'] = self.data_['Ds'].map(lambda v: str(v))
+        print self.data_.shape
 
     def GetTimePeriod(self) :
         """
         get the time period in training set and validation set
         """
         logging.info('get time period')
-        time_period = sorted(map(lambda v: datetime.datetime.strptime(str(v), '%Y%m%d'), set(self.train_.Ds.values)))
-        self.train_time_period_ = [time_period[0], time_period[-1]] 
-        logging.debug('the time period in training set: %s to %s'%(time_period[0].strftime("%Y-%m-%d"), time_period[-1].strftime("%Y-%m-%d")))
-        time_period = sorted(map(lambda v: datetime.datetime.strptime(str(v), '%Y%m%d'), set(self.test_.Ds.values)))
-        self.test_time_period_ = [time_period[0], time_period[-1]]
-        logging.debug('the time period in testing set: %s to %s'%(time_period[0].strftime("%Y-%m-%d"), time_period[-1].strftime("%Y-%m-%d")))
+        time_period = sorted(map(lambda v: StrToDate(v), set(self.data_.Ds.values)))
+        self.time_period_ = [time_period[0], time_period[-1]] 
+        logging.info('the time period: %s to %s'%(time_period[0].strftime("%Y-%m-%d"), time_period[-1].strftime("%Y-%m-%d")))
 
-    def GetDataStatistics(self) :
+    def GetSamePair(self, st) :
         """
         """
-        logging.info('get data statistics start')
-        self.artist_gender_ = {}
-        self.artist_date_action_ = [{}, {}, {}]
-        self.artist_date_new_songs_ = {}
-        for row in xrange(self.songs_.shape[0]) :
-            entry = self.songs_.iloc[row,:]
-            artist_date = str(entry.artist_id) + str(entry.publish_time)
-            self.artist_date_new_songs_.setdefault(artist_date, 0)
-            self.artist_date_new_songs_[artist_date] += 1
+        n = self.user_song_date_sorted_.shape[0]
+        ed = st 
+        entry_st = self.user_song_date_sorted_.iloc[st,:]
+        while ed < n :
+            entry_ed = self.user_song_date_sorted_.iloc[ed,:]
+            if entry_st.user_id + entry_st.song_id == entry_ed.user_id + entry_ed.song_id :
+                ed += 1
+            else : break
+        return ed
 
-            self.artist_gender_[entry.artist_id] = entry.Gender
-
-        for row in xrange(self.train_.shape[0]) :
-            entry = self.train_.iloc[row,:]
-            artist_date = str(entry.artist_id) + str(entry.Ds)
-            self.artist_date_action_[int (entry.action_type) - 1].setdefault(artist_date, 0)
-
-            self.artist_date_action_[int (entry.action_type) - 1][artist_date] += 1
-            self.artist_gender_[entry.artist_id] = entry.Gender
-
-        for row in xrange(self.test_.shape[0]) :
-            entry = self.test_.iloc[row,:]
-            artist_date = str(entry.artist_id) + str(entry.Ds)
-            self.artist_date_action_[int (entry.action_type) - 1].setdefault(artist_date, 0)
-
-            self.artist_date_action_[int (entry.action_type) - 1][artist_date] += 1
-            self.artist_gender_[entry.artist_id] = entry.Gender
-
-    def GetTrainingSet(self, consecutive = 3, gap = 1) :
+    def GetArtistGender(self, entry, today) :
         """
         """
-        self.consecutive_ = consecutive
-        self.gap_ = gap
-        data = []
-        label = []
-        oneday = datetime.timedelta(days=1)
-        conday = datetime.timedelta(days=self.consecutive_-1)
-        gapday = datetime.timedelta(days=self.gap_)
-        start_day = self.train_time_period_[0]
-        columns_name = []
-        ope = ['play', 'download', 'collect']
-        columns_name.append ('Gender')
-        for day in xrange(1, self.consecutive_ + 1) :
-            for i in xrange(3) :
-                columns_name.append (str (day) + '_' + ope[i])
-            columns_name.append(str(day) + '_pub')
+        return entry.Gender
 
-        while True:
-            end_day = start_day + conday
-            label_day = end_day + gapday
-            if label_day > self.train_time_period_[1] :
-                break
+    def GetSongLanguage(self, entry, today) :
+        """
+        """
+        return entry.Language
+
+    def GetPublishedDays(self, entry, today) :
+        """
+        """
+        return (today - entry.publish_time).days
+
+    def GetSingleFeature(self, feature_name, function) :
+        """
+        """
+        logging.info('get the ' + feature_name)
+        filepath = ROOT + '/data/' + feature_name + '_' + str(self.consecutive_all_) + '_' + str(self.consecutive_last_) + '_' + str(self.gap_) + '.csv'
+        if os.path.exists(filepath) :
+            logging.info(filepath + ' exists!')
+            return
+        feature = []
+        n = self.user_song_date_sorted_.shape[0]
+        st, ed = 0, 0
+        con_day = datetime.timedelta(days = self.consecutive_all_ - 1)
+        gap_day = datetime.timedelta(days = self.gap_)
+        while st < n :
+            ed = self.GetSamePair(st)
+            sub = self.user_song_date_sorted_.iloc[st:ed,]
+            m = ed - st 
+            if st / 10000 != ed / 10000 :
+                logging.info('handering %d samples!' % st)
+            st = ed
+
+            for index in xrange(m) :
+                today = StrToDate(sub.iloc[index,:].Ds)
+                end_day = today - gap_day
+                begin_day = end_day - con_day
+                is_exist = False
+
+                for pre in xrange(index - 1 , -1 , -1) :
+                    entry = sub.iloc[pre,:]
+                    this_day = StrToDate(entry.Ds)
+                    if this_day <= end_day :
+                        if this_day >= begin_day :
+                            is_exist = True
+                        break
                 
-            for artist in self.artist_set_ :
-                entry = []
-                entry.append (self.artist_gender_[artist])
-                today = start_day
-                for day in xrange(self.consecutive_) :
-                    for action in xrange(3) :
-                        entry.append(self.artist_date_action_[action].get(artist + DateToStr(today), 0)) 
-                    entry.append (self.artist_date_new_songs_.get(artist + DateToStr(today), 0))
-                    today = today + oneday
+                if is_exist:
+                    feature.append([entry.user_id + entry.song_id + DateToStr(today), function(entry, today)])
 
-                label.append([artist, self.artist_date_action_[0].get(artist + DateToStr(label_day), 0)])
-                data.append(entry)
-            start_day = start_day + oneday
+        feature_csv = pd.DataFrame(feature, columns = ['user_song_date', feature_name])
+        feature_csv.to_csv(filepath, encoding = 'utf-8', index = False)
 
-        self.train_x_ = pd.DataFrame(data, columns = columns_name)
-        self.train_y_ = pd.DataFrame(label, columns = ['artist_id', 'label'])
-        logging.info('get training data done! the shape of data is (%d %d)' %self.train_x_.shape)
-
-    def GetValidationSet(self, days = 1) :
+    def GetData(self, consecutive_all = 30, consecutive_last = 3, gap = 1, training_proportion = 0.8) :
         """
+        feature list:
+        1. gender of artist 
+        2. language of song
+        3. how many days have been published for this song 
+        4. the number of total plays for current user and current song in consecutive_all days 
+        5. the number of total plays for current user and current song in consecutive_last days 
+        6. the number of total plays for current user and all the song in consecutive_all days 
+        7. the number of total plays for current user and all the song in consecutive_last days 
+        8. the proportion of the songs that the current user plays in consecutive_all days 
+        9. the proportion of the songs that the currect user plays in consecutive_last days 
+        10. the proportion of the artist that the current user plays in consecutive_all days 
+        11. the proportion of the artist that the currect user plays in consecutive_last days 
+        12. whether the current user have collected this song 
+        13. whether the current user have downloaded this song
         """
-        data = []
-        label = []
-        oneday = datetime.timedelta(days = 1)
-        label_day = self.test_time_period_[0]
-        columns_name = []
-        ope = ['play', 'download', 'collect']
-        columns_name.append ('Gender')
-        for day in xrange(1, self.consecutive_ + 1) :
-            for i in xrange(3) :
-                columns_name.append (str (day) + '_' + ope[i])
-            columns_name.append(str(day) + '_pub')
+        logging.info("start generating data according to feature list") 
+        self.consecutive_all_ = consecutive_all
+        self.consecutive_last_ = consecutive_last
+        self.gap_ = gap
+        self.training_proportion_ = training_proportion
+        logging.info("the number of feature is %d" % self.kFeature)
 
-        for day in xrange(days) :
-            for artist in self.artist_set_ :
-                entry = []
-                entry.append (self.artist_gender_[artist])
-                today = label_day - datetime.timedelta(days = self.gap_ + self.consecutive_ - 1) 
-                for day in xrange(self.consecutive_) :
-                    for action in xrange(3) :
-                        entry.append(self.artist_date_action_[action].get(artist + DateToStr(today), 0)) 
-                    entry.append (self.artist_date_new_songs_.get(artist + DateToStr(today), 0))
-                    today = today + oneday
+        self.user_song_date_ = {}
+    
+        self.user_song_date_sorted_ = self.data_.sort_values(['user_id', 'song_id', 'Ds'], ascending = True)
+        self.GetSingleFeature('gender_of_artist', self.GetArtistGender)
+        self.GetSingleFeature('language_of_song', self.GetSongLanguage)
+        self.GetSingleFeature('published_days', self.GetPublishedDays)
 
-                label.append([artist, self.artist_date_action_[0].get(artist + DateToStr(label_day), 0)])
-                data.append(entry)
-
-            label_day = label_day + oneday
-            
-        self.val_x_ = pd.DataFrame(data, columns = columns_name)
-        self.val_y_ = pd.DataFrame(label, columns = ['artist_id', 'label'])
-        logging.info('get validation data done! the shape of data is (%d %d)' %self.val_x_.shape)
-
-    def FeatureHandler(self,) :
-        """
-        """
-        self.train_x_ = binary_feature(self.train_x_, 'Gender')
-        self.train_x_.drop('Gender', axis = 1, inplace = 1)
-        self.val_x_ = binary_feature(self.val_x_, 'Gender')
-        self.val_x_.drop('Gender', axis = 1, inplace = 1)
         
+        
+        
+
+
 if __name__ == '__main__' :
     data = DataSet()
-    
-

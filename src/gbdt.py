@@ -38,11 +38,3 @@ if __name__ == "__main__":
     now = datetime.datetime.now()
     now = datetime.datetime.strftime(now, '%Y%m%d-%H:%M:%S')
     dataset = data_set.DataSet()
-    for consecutive in xrange (3 , 10) :
-        dataset.GetTrainingSet(consecutive = consecutive)
-        dataset.GetValidationSet()
-        dataset.FeatureHandler()
-        gbdt, predict = gbdt_solver(dataset)
-        logging.info('the score of prediction %.2f' % evaluate.evaluate(predict, dataset.val_y_))
-        joblib.dump(gbdt, ROOT + '/result/model/gbdt_' + now + '.pkl')
-        
