@@ -2,11 +2,13 @@
 # coding=utf-8
 
 import os
+import math
 import shutil
 import numpy as np
 import pandas as pd
 import logging
 import datetime
+import calendar
 import threading
 from multiprocessing import Process, Queue, Lock
 from feature_handler import *
@@ -36,7 +38,7 @@ class DataSet :
         self.n_jobs_ = n_jobs
         self.Read()
         self.Join()
-        self.GetTimePeriod()
+        # self.GetTimePeriod()
         self.GetData()
 
     def Read(self) :
@@ -78,189 +80,215 @@ class DataSet :
         self.time_period_ = [time_period[0], time_period[-1]] 
         logging.info('the time period: %s to %s'%(time_period[0].strftime("%Y-%m-%d"), time_period[-1].strftime("%Y-%m-%d")))
 
-    def GetSameUserSongPair(self, st) :
+    def SplitByMonth(self) :
         """
         """
-        n = self.user_song_date_sorted_.shape[0]
+        logging.info('start spliting data by month')
+        self.data_ = self.data_.sort_values(['Ds'], ascending = True)
+        self.month_data_ = []
+        self.month_name_ = []
+        st = 0
+        month = self.data_.iloc[0,:].Ds[:6]
+        block = max(1, int(math.sqrt(self.data_.shape[0] * 1.0)))
+        for i in xrange(0, self.data_.shape[0], block) :
+            if self.data_.iloc[i,:].Ds[:6] != month :
+                ed = i - 1
+                while True :
+                    if self.data_.iloc[ed,:].Ds[:6] == month: break
+                    ed -= 1
+                self.month_name_.append(month)
+                self.month_data_.append(self.data_[st:ed + 1])
+                self.month_data_[-1] = self.month_data_[-1].sort_values(['user_id', 'song_id', 'Ds'], ascending = True)
+                logging.info('for the month %s: from %d to %d, total %d' % (month, st, ed, ed - st + 1))
+                st = ed + 1 
+                month = self.data_.iloc[i,:].Ds[:6]
+        self.month_name_.append(month)
+        self.month_data_.append(self.data_[st:])
+        self.month_data_[-1] = self.month_data_[-1].sort_values(['user_id', 'song_id', 'Ds'], ascending = True)
+        logging.info('for the month %s: from %d to final, total %d' % (month, st, self.month_data_[-1].shape[0]))
+
+    def GetSameUserSongPair(self, month, st) :
+        """
+        """
+        n = self.month_data_[month].shape[0]
         ed = st 
-        entry_st = self.user_song_date_sorted_.iloc[st,:]
+        entry_st = self.month_data_[month].iloc[st,:]
         while ed < n :
-            entry_ed = self.user_song_date_sorted_.iloc[ed,:]
+            entry_ed = self.month_data_[month].iloc[ed,:]
             if entry_st.user_id + entry_st.song_id == entry_ed.user_id + entry_ed.song_id :
                 ed += 1
             else : break
         return ed
     
-    def GetSameUserSongDateTriple(self, st, data) :
+    def GetSameUserSongDateTriple(self, month, st) :
         """
         """
-        n = data.shape[0]
+        n = self.month_data_[month].shape[0]
         ed = st 
-        entry_st = data.iloc[st,:]
+        entry_st = self.month_data_[month].iloc[st,:]
         while ed < n :
-            entry_ed = data.iloc[ed,:]
+            entry_ed = self.month_data_[month].iloc[ed,:]
             if entry_st.user_id + entry_st.song_id + entry_st.Ds == entry_ed.user_id + entry_ed.song_id + entry_ed.Ds :
                 ed += 1
             else : break
         return ed
 
-    def GetArtistGender(self, begin_day, end_day, sub) :
+    def GetArtistGender(self, sub) :
         """
         """
-        n = sub.shape[0]
-        is_exist = False
-        for pre in xrange(n - 1 , -1 , -1) :
-            entry = sub.iloc[pre,:]
-            this_day = StrToDate(entry.Ds)
-            if this_day <= end_day :
-                if this_day >= begin_day :
-                    is_exist = True
-                break
-        if not is_exist : 
-            return None
-        return entry.Gender
+        return sub.iloc[0,:].Gender
 
-    def GetSongLanguage(self, begin_day, end_day, sub) :
+    def GetSongLanguage(self, sub) :
         """
         """
-        n = sub.shape[0]
-        is_exist = False
-        for pre in xrange(n - 1 , -1 , -1) :
-            entry = sub.iloc[pre,:]
-            this_day = StrToDate(entry.Ds)
-            if this_day <= end_day :
-                if this_day >= begin_day :
-                    is_exist = True
-                break
-        if not is_exist : 
-            return None
-        return entry.Language
+        return sub.iloc[0,:].Language
 
-    def GetPublishedDays(self, begin_day, end_day, sub) :
+    def GetPublishedDays(self, sub) :
         """
         """
-        n = sub.shape[0]
-        is_exist = False
-        for pre in xrange(n - 1 , -1 , -1) :
-            entry = sub.iloc[pre,:]
-            this_day = StrToDate(entry.Ds)
-            if this_day <= end_day :
-                if this_day >= begin_day :
-                    is_exist = True
-                break
-        if not is_exist : 
-            return None
-        return (begin_day - StrToDate(entry.publish_time)).days
+        # from the publish time to 1st day of this month 
+        today = StrToDate(sub.iloc[0,:].Ds)
+        return (today - StrToDate(sub.iloc[0,:].publish_time)).days - today.day 
     
-    def GetIsCollect(self, begin_day, end_day, sub) :
+    def GetIsCollect(self, sub) :
         """
         """
         n = sub.shape[0]
-        is_exist = False
         is_collect = 0
-        for pre in xrange(n - 1 , -1 , -1) :
+        for pre in xrange(n) :
             entry = sub.iloc[pre,:]
-            this_day = StrToDate(entry.Ds)
-            if this_day <= end_day :
-                if this_day >= begin_day :
-                    is_exist = True
-                    if entry.action_type == 3:
-                        is_collect = 1
-        if not is_exist : 
-            return None
+            if entry.action_type == 3:
+                is_collect = 1
+                break
         return is_collect
     
-    def GetIsDownload(self, begin_day, end_day, sub) :
+    def GetIsDownload(self, sub) :
         """
         """
         n = sub.shape[0]
-        is_exist = False
         is_download = 0
-        for pre in xrange(n - 1 , -1 , -1) :
+        for pre in xrange(n) :
             entry = sub.iloc[pre,:]
-            this_day = StrToDate(entry.Ds)
-            if this_day <= end_day :
-                if this_day >= begin_day :
-                    is_exist = True
-                    if entry.action_type == 2:
-                        is_download = 1
-        if not is_exist : 
-            return None
+            if entry.action_type == 2:
+                is_download = 1
         return is_download
 
-    def GetTotalPlays(self, begin_day, end_day, sub) :
+    def GetTotalPlaysForFeature(self, sub) :
         """
         """
         n = sub.shape[0]
-        is_exist = False
         total_plays = 0
-        for pre in xrange(n - 1 , -1 , -1) :
+        for pre in xrange(n) :
             entry = sub.iloc[pre,:]
-            this_day = StrToDate(entry.Ds)
-            if this_day <= end_day :
-                if this_day >= begin_day :
-                    is_exist = True
-                    if entry.action_type == 1:
-                        total_plays += 1
-        if not is_exist : 
-            return None
+            if entry.action_type == 1:
+                total_plays += 1
         return total_plays 
+
+    def GetTotalPlaysForLabel(self, month, today, sub) :
+        """
+        """
+        n = sub.shape[0]
+        total_plays = 0
+        for pre in xrange(n) :
+            entry = sub.iloc[pre,:]
+            if entry.action_type == 1:
+                total_plays += 1
+        return total_plays 
+
+    def GetWeekday(self, month, today, sub) :
+        """
+        """
+        weekday = today.weekday()
+        if weekday == 0 : weekday = 7
+        return weekday
+
+    def GetDay(self, month, today, sub) :
+        """
+        """
+        return today.day
     
-    def SingleFeatureProcess(self, id, consecutive_days, function, st, ed, file_path):
+    def SingleFeatureProcess(self, id, month, function, st, ed, file_path, consecutive_days = None):
+        """
+        """
+        logging.info("process %s start!" % id)
+        user_song_st, user_song_ed = st, st 
+        while user_song_st < ed :
+            user_song_ed = self.GetSameUserSongPair(month, user_song_st)
+            n = user_song_ed - user_song_st
+            sub = self.month_data_[month].iloc[user_song_st:user_song_ed,]
+            entry = sub.iloc[0,:]
+            if user_song_st / 1000 != user_song_ed / 1000 :
+                logging.info('process %s: handering %d samples!' % (id, user_song_st - st + 1))
+            
+            if consecutive_days == None :
+                value = function(sub)
+            else :
+                lastday = calendar.monthrange(int(self.month_name_[month][:4]), int(self.month_name_[month][4:]))[1]
+                begin_day = StrToDate(self.month_name_[month][:4] + str(lastday - consecutive_days + 1))
+                
+                user_song_date_st = 0
+                while user_song_date_st < n and StrToDate(sub.iloc[user_song_date_st,:].Ds) < begin_day :
+                    user_song_date_st += 1
+                value = function(sub[user_song_date_st:])
+                
+            if value != None:
+                with open(file_path, 'a') as out :
+                    out.write(entry.user_id + '#' + entry.song_id + ',' + str(value) + '\n')
+
+            user_song_st = user_song_ed
+
+    def LabelProcess(self, id, month, function, st, ed, file_path, consecutive_days = None):
         """
         """
         logging.info("process %s start!" % id)
         user_song_st, user_song_ed = st, st 
         one_day = datetime.timedelta(days = 1)
-        con_day = datetime.timedelta(days = consecutive_days - 1)
-        gap_day = datetime.timedelta(days = self.gap_)
         while user_song_st < ed :
-            user_song_ed = self.GetSameUserSongPair(user_song_st)
-            sub = self.user_song_date_sorted_.iloc[user_song_st:user_song_ed,]
+            user_song_ed = self.GetSameUserSongPair(month, user_song_st)
+            n = user_song_ed - user_song_st
+            sub = self.month_data_[month].iloc[user_song_st:user_song_ed,]
             entry = sub.iloc[0,:]
-            m = user_song_ed - user_song_st 
             if user_song_st / 1000 != user_song_ed / 1000 :
                 logging.info('process %s: handering %d samples!' % (id, user_song_st - st + 1))
-            user_song_st = user_song_ed
-            
-            delta_days = (self.time_period_[1] - self.time_period_[0]).days + 1
-            begin_day = self.time_period_[0]
+
             user_song_date_st = 0
-            for day in xrange(delta_days - consecutive_days - self.gap_ + 1) :
-                # x: [begin_day, end_day] y: target_day
-                end_day = begin_day + con_day
-                target_day = end_day + gap_day
+            begin_day = StrToDate(self.month_name_[month] + '01') 
+            today = begin_day
+            while today.month == begin_day.month:
+                if user_song_date_st < n and DateToStr(today) == sub.iloc[user_song_date_st,:].Ds :
+                    user_song_date_ed = self.GetSameUserSongDateTriple(month, user_song_date_st)
+                    value = function(month, today, sub.iloc[user_song_date_st:user_song_date_ed])
+                    user_song_date_st = user_song_date_ed
+                else:
+                    value = function(month, today, sub.iloc[0:0])
 
-                while user_song_date_st < m and StrToDate(sub.iloc[user_song_date_st,:].Ds) <= end_day :
-                    user_song_date_st += 1
-
-                value = function(begin_day, end_day, sub[0:user_song_date_st])
-                begin_day = begin_day + one_day
-
-                if value:
+                if value != None:
                     with open(file_path, 'a') as out :
-                        out.write(entry.user_id + entry.song_id + DateToStr(target_day) + ',' + str(value) + '\n')
+                        out.write(entry.user_id + '#' + entry.song_id + ',' + str(value) + '\n')
+                today = today + one_day
+ 
+            user_song_st = user_song_ed
 
-    def GetSingleFeature(self, feature_name, consecutive_days, function) :
+    def GetFeatureInOneMonth(self, month, feature_name, extract_function, process_function, consecutive_days = None) :
         """
         """
-        logging.info('get feature: ' + feature_name)
-        filepath = ROOT + '/data/' + feature_name + '_' + self.type_ + '_' + str(self.consecutive_all_) + '_' + str(self.consecutive_last_) + '_' + str(self.gap_) + '.csv'
+        logging.info('get feature %s in month %s' %(feature_name, self.month_name_[month]))
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
         if os.path.exists(filepath) :
             logging.info(filepath + ' exists!')
             return
-        n = self.user_song_date_sorted_.shape[0]
+        n = self.month_data_[month].shape[0]
 
         seperate = [0]
         for i in xrange(1, self.n_jobs_) :
             point = n / self.n_jobs_ * i
-            point = self.GetSameUserSongPair(point)
+            point = self.GetSameUserSongPair(month, point)
             seperate.append(point)
         seperate.append(n)
 
         processes = []
         for i in xrange(self.n_jobs_) :
-            process = Process(target = self.SingleFeatureProcess, args = (str(i + 1), consecutive_days, function, seperate[i], seperate[i + 1], filepath[:-4] + str(i) + filepath[-4:]))
+            process = Process(target = process_function, args = (str(i + 1), month, extract_function, seperate[i], seperate[i + 1], filepath[:-4] + str(i) + filepath[-4:], consecutive_days))
             process.start()
             processes.append(process)
         for process in processes:
@@ -274,40 +302,22 @@ class DataSet :
 
         logging.info('the feature %s is write into %s' % (feature_name, filepath))
 
-    def GetLabel(self, label_name, consecutive_days, function) :
+    def GetSingleFeature(self, feature_name, function, consecutive_days = None) :
         """
         """
-        logging.info('get label: ' + label_name)
-        filepath = ROOT + '/data/' + label_name + '_' + self.type_ + '_' + str(self.consecutive_all_) + '_' + str(self.consecutive_last_) + '_' + str(self.gap_) + '.csv'
-        if os.path.exists(filepath) :
-            logging.info(filepath + ' exists!')
-            return
-        n = self.user_song_date_sorted_.shape[0]
-       
-        seperate = [0]
-        for i in xrange(1, self.n_jobs_) :
-            point = n / self.n_jobs_ * i
-            point = self.GetSameUserSongPair(point)
-            seperate.append(point)
-        seperate.append(n)
+        logging.info('get feature: %s' % feature_name)
+        for month in xrange(len(self.month_data_)) :
+            self.GetFeatureInOneMonth(month, feature_name, function, self.SingleFeatureProcess, consecutive_days)
 
-        processes = []
-        for i in xrange(self.n_jobs_) :
-            process = Process(target = self.SingleFeatureProcess, args = (str(i + 1), consecutive_days, function, seperate[i], seperate[i + 1], filepath[:-4] + str(i) + filepath[-4:]))
-            process.start()
-            processes.append(process)
-        for process in processes:
-            process.join()
+    def GetLabel(self, label_name, function) :
+        """
+        """
+        logging.info('get label: %s' % label_name)
+        for month in xrange(len(self.month_data_)) :
+            self.GetFeatureInOneMonth(month, label_name, function, self.LabelProcess)
+            
 
-        with open (filepath, 'w') as out :
-            out.write ('user_song_date,' + label_name + '\n')
-        for i in xrange(self.n_jobs_) :
-            os.system("cat " + filepath[:-4] + str(i) + filepath[-4:] + " >> " + filepath)
-            os.remove(filepath[:-4] + str(i) + filepath[-4:])
-
-        logging.info('the feature %s is write into %s' % (feature_name, filepath))
-
-    def GetData(self, consecutive_all = 30, consecutive_last = 3, gap = 1, training_proportion = 0.8) :
+    def GetData(self, consecutive_recent = [14, 7, 3], gap_month = 1, gap_day = 0) :
         """
         feature list:
         1. gender of artist 
@@ -325,28 +335,26 @@ class DataSet :
         13. whether the current user have downloaded this song
         """
         logging.info("start generating data according to feature list") 
-        self.consecutive_all_ = consecutive_all
-        self.consecutive_last_ = consecutive_last
-        self.gap_ = gap
-        self.training_proportion_ = training_proportion
+        self.consecutive_recent_ = consecutive_recent
+        self.gap_month_ = gap_month
+        self.gap_day_ = gap_day
 
-        self.user_song_date_ = {}
-    
-        self.user_song_date_sorted_ = self.data_.sort_values(['user_id', 'song_id', 'Ds'], ascending = True)
+        self.SplitByMonth()
 
-        #self.GetSingleFeature('gender_of_artist', self.consecutive_all_, self.GetArtistGender)
-        #self.GetSingleFeature('language_of_song', self.consecutive_all_, self.GetSongLanguage)
-        #self.GetSingleFeature('published_days', self.consecutive_all_, self.GetPublishedDays)
+        #self.GetSingleFeature('gender_of_artist', self.GetArtistGender)
+        #self.GetSingleFeature('language_of_song', self.GetSongLanguage)
+        #self.GetSingleFeature('published_days', self.GetPublishedDays)
 
-        #self.GetSingleFeature('total_plays_for_one_song_all', self.consecutive_all_, self.GetTotalPlays)
-        #self.GetSingleFeature('total_plays_for_one_song_recent', self.consecutive_last_, self.GetTotalPlays)
+        #self.GetSingleFeature('total_plays_for_one_song_all', self.GetTotalPlaysForFeature)
+        for consecutive_days in self.consecutive_recent_:
+            self.GetSingleFeature('total_plays_for_one_song_recent_' + str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days)
 
+        #self.GetSingleFeature('is_collect', self.GetIsCollect)
+        #self.GetSingleFeature('is_download', self.GetIsDownload)
 
-        #self.GetSingleFeature('is_collect', self.consecutive_all_, self.GetIsCollect)
-        #self.GetSingleFeature('is_download', self.consecutive_all_, self.GetIsDownload)
-
-
-        self.GetLabel('label_plays', self.consecutive_all_, self.GetTotalPlays)
+        self.GetLabel('label_plays', self.GetTotalPlaysForLabel)
+        self.GetLabel('label_weekday', self.GetWeekday)
+        self.GetLabel('label_day', self.GetDay)
 
         
         
