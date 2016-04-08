@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 
+import time
 import os
 import math
 import shutil
@@ -11,7 +12,7 @@ import datetime
 import calendar
 import threading
 from multiprocessing import Process, Queue, Lock
-from feature_handler import *
+import feature_handler
 
 import sys
 sys.path.insert(0, '..')
@@ -28,8 +29,6 @@ def StrToDate(str) :
     """
     return datetime.datetime.strptime(str, "%Y%m%d")
 
-        
-
 class DataSet :
     """
     """
@@ -39,7 +38,7 @@ class DataSet :
         self.Read()
         self.Join()
         # self.GetTimePeriod()
-        self.GetData()
+        self.GetFeature()
 
     def Read(self) :
         """
@@ -66,7 +65,7 @@ class DataSet :
         """
         """
         logging.info("merge action and songs by song_id")
-        self.data_ = pd.merge(self.action_, self.songs_, on = 'song_id')
+        self.data_ = pd.merge(self.action_, self.songs_, how = 'left', on = 'song_id')
         self.data_['Ds'] = self.data_['Ds'].map(lambda v: str(v))
         self.data_['publish_time'] = self.data_['publish_time'].map(lambda v: str(v))
         print self.data_.shape
@@ -149,6 +148,11 @@ class DataSet :
         # from the publish time to 1st day of this month 
         today = StrToDate(sub.iloc[0,:].Ds)
         return (today - StrToDate(sub.iloc[0,:].publish_time)).days - today.day 
+
+    def GetArtistID(self, sub) :
+        """
+        """
+        return sub.iloc[0,:].artist_id
     
     def GetIsCollect(self, sub) :
         """
@@ -199,7 +203,6 @@ class DataSet :
         """
         """
         weekday = today.weekday()
-        if weekday == 0 : weekday = 7
         return weekday
 
     def GetDay(self, month, today, sub) :
@@ -295,7 +298,7 @@ class DataSet :
             process.join()
 
         with open (filepath, 'w') as out :
-            out.write ('user_song_date,' + feature_name + '\n')
+            out.write ('user_song,' + feature_name + '\n')
         for i in xrange(self.n_jobs_) :
             os.system("cat " + filepath[:-4] + str(i) + filepath[-4:] + " >> " + filepath)
             os.remove(filepath[:-4] + str(i) + filepath[-4:])
@@ -315,9 +318,8 @@ class DataSet :
         logging.info('get label: %s' % label_name)
         for month in xrange(len(self.month_data_)) :
             self.GetFeatureInOneMonth(month, label_name, function, self.LabelProcess)
-            
 
-    def GetData(self, consecutive_recent = [14, 7, 3], gap_month = 1, gap_day = 0) :
+    def GetFeature(self, consecutive_recent = [14, 7, 3], gap_month = 1, gap_day = 0) :
         """
         feature list:
         1. gender of artist 
@@ -341,24 +343,130 @@ class DataSet :
 
         self.SplitByMonth()
 
-        #self.GetSingleFeature('gender_of_artist', self.GetArtistGender)
-        #self.GetSingleFeature('language_of_song', self.GetSongLanguage)
-        #self.GetSingleFeature('published_days', self.GetPublishedDays)
+        self.GetSingleFeature('gender_of_artist', self.GetArtistGender)
+        self.GetSingleFeature('language_of_song', self.GetSongLanguage)
+        self.GetSingleFeature('published_days', self.GetPublishedDays)
+        self.GetSingleFeature('artist_id', self.GetArtistID)
 
-        #self.GetSingleFeature('total_plays_for_one_song_all', self.GetTotalPlaysForFeature)
+        self.GetSingleFeature('total_plays_for_one_song_all', self.GetTotalPlaysForFeature)
         for consecutive_days in self.consecutive_recent_:
             self.GetSingleFeature('total_plays_for_one_song_recent_' + str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days)
 
-        #self.GetSingleFeature('is_collect', self.GetIsCollect)
-        #self.GetSingleFeature('is_download', self.GetIsDownload)
+        self.GetSingleFeature('is_collect', self.GetIsCollect)
+        self.GetSingleFeature('is_download', self.GetIsDownload)
 
         self.GetLabel('label_plays', self.GetTotalPlaysForLabel)
         self.GetLabel('label_weekday', self.GetWeekday)
         self.GetLabel('label_day', self.GetDay)
 
+    def GetFromFile(self, month, feature_name) :
+        """
+        """
+        logging.info('get feature %s in month %s from file' %(feature_name, self.month_name_[month]))
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+        if not os.path.exists(filepath) :
+            os.system('cat ' + filepath)
+            logging.error(filepath + ' doesn\'t exists!')
+            exit(1)
+
+        data = pd.read_csv(filepath)
+        return data
+
+    def GetSongInfoForMergingData(self, song, feature) :
+        """
+        """
+        if feature == 'gender_of_artist' : feature = 'Gender'
+        if feature == 'language_of_song' : feature = 'Language'
+        return self.songs_.loc[self.songs_.song_id == song, feature].values.tolist()[0]
+
+    def MergeData(self, x, y, y_month) :
+        """
+        merge the feature and label by user_song
+        """
+        data = pd.merge(x, y, how = 'outer', on = 'user_song')
+        data.sort_values(['user_song', 'label_day'])
         
+        # how many days in y_month
+        days = calendar.monthrange(int(self.month_name_[y_month][:4]), int(self.month_name_[y_month][4:]))[1]
+        # the weekday for 1st
+        weekday_1st = StrToDate(self.month_name_[y_month] + '01').weekday()
+
+        # y exist, x not exitst
+        data['song_id'] = data.user_song.map(lambda v : v.split('#')[1])
+        feature_list = ['gender_of_artist', 'artist_id', 'language_of_song']
+        for feature in feature_list :
+            groups = data[data[feature].isnull()].groupby(['song_id']).groups
+            for name, group in groups.items() :
+                data.loc[group, feature] = self.GetSongInfoForMergingData(name, feature)
+
+            # data.loc[data[feature].isnull(), feature] = data.loc[data[feature].isnull(), 'user_song'].map(lambda v : self.GetSongInfoForMergingData(v, feature))
+        data.drop('song_id', inplace = True, axis = 1)
         
-        
+        # x exist, y not exist
+        table = data[data.label_day.isnull()] 
+        data = data[data.label_day.isnull() == False]
+
+        for i in xrange(days) :
+            day = i + 1
+            weekday = (weekday_1st + i) % 7
+
+            table['label_weekday'] = weekday
+            table['label_day'] = day
+
+            data = pd.concat([data, table])
+
+        return data
+
+    def GetData(self, month_for_test = 2) :
+        """
+        """
+        feature_list = ['artist_id', 'gender_of_artist', 'language_of_song', 'published_days', 'total_plays_for_one_song_all', 'is_collect', 'is_download']
+        for consecutive_days in self.consecutive_recent_ :
+            feature_list.append('total_plays_for_one_song_recent_' + str(consecutive_days))
+        label_list = ['label_plays', 'label_day', 'label_weekday']
+
+        self.final_data_ = None
+        first_month = True
+        cnt_month = []
+        for month in  xrange(len(self.month_name_) - self.gap_month_) :
+            first = True
+            y_data = None 
+            for label in label_list :
+                data = self.GetFromFile(month + self.gap_month_, label)
+                if first : y_data = data
+                else : y_data[label] = data[label]
+                first = False
+
+            first = True
+            x_data = []
+            for feature in feature_list:
+                data = self.GetFromFile(month, feature)
+                if first : x_data = data
+                else : x_data[feature] = data[feature]
+                first = False
+
+            final_data = self.MergeData(x_data, y_data, month + self.gap_month_)
+
+            cnt_month.append(final_data.shape[0])
+            if first_month:
+                self.final_data_ = final_data
+            else :
+                self.final_data_ = pd.concat([self.final_data_, final_data])
+            first_month = False
+
+        # replace the null value by zero
+        for label in label_list:
+            self.final_data_[label][self.final_data_[label].isnull()] = 0
+        for feature in feature_list:
+            self.final_data_[feature][self.final_data_[feature].isnull()] = 0
+
+        # binary feature
+        binary_feature = ['gender_of_artist', 'language_of_song', 'label_day', 'label_weekday']
+        for feature in binary_feature:
+            self.final_data_ = feature_handler.binary_feature(self.final_data_, feature)
+
+        testing = sum(cnt_month[-month_for_test:])
+        return self.final_data_[:-testing], self.final_data_[-testing:]
 
 
 if __name__ == '__main__' :

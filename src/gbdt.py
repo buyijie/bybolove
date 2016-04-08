@@ -4,12 +4,13 @@
 import datetime
 import logging
 import utils.data_set as data_set
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.externals import joblib
+from sklearn.ensemble import GradientBoostingRegressor
 import logging.config
 import utils.evaluate as evaluate
+from sklearn.externals import joblib
 import sys
 import getopt
+import solver
 
 sys.path.insert(0, '..')
 from configure import *
@@ -26,20 +27,28 @@ def usage() :
     print '-j, --jobs: the number of processes to handler, default = 1'
     print '-t, --type: the type of data need to handler, default = unit'
 
-def gbdt_solver(dataset) :
+def gbdt_solver(train_x, train_y, test_x, now_time) :
     """
     """
+    logging.info('start training the gbdt model')
     params = {
-        'n_estimators': 100,
+        'n_estimators': 1,
         'learning_rate': 0.03,
         'random_state': 1000000007,
         'max_depth': 2,
-        'warm_start': True}
-    logging.info("the parameters of gbdt is :")
-    print params
-    gb = GradientBoostingClassifier(**params)
-    gb.fit(dataset.train_x_.values, dataset.train_y_.label.values)
-    return gb, gb.predict(dataset.val_x_.values)
+        'warm_start': True,
+        'verbose' : 1
+    }
+
+    with open(ROOT + '/result/' + now_time + '.param', 'w') as out :
+        for key, val in params.items():
+            out.write(str(key) + ': ' + str(val) + '\n')
+
+    gb = GradientBoostingRegressor(**params)
+    gb.fit(train_x, train_y)
+    joblib.dump(gb, ROOT + '/result/' + now_time + '.pkl')
+    
+    return gb.predict(test_x)
 
 
 if __name__ == "__main__":
@@ -65,4 +74,9 @@ if __name__ == "__main__":
             print 'invalid parameter:', o
             usage()
             sys.exit(1)
+
     dataset = data_set.DataSet(type = type, n_jobs = n_jobs)
+    solver.main(dataset, gbdt_solver)
+    
+
+ 
