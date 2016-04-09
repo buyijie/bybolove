@@ -32,11 +32,10 @@ def gbdt_solver(train_x, train_y, test_x, now_time) :
     """
     logging.info('start training the gbdt model')
     params = {
-        'n_estimators': 1,
+        'n_estimators': 1000,
         'learning_rate': 0.03,
         'random_state': 1000000007,
-        'max_depth': 2,
-        'warm_start': True,
+        'max_depth': 3,
         'verbose' : 1
     }
 

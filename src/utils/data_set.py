@@ -1,17 +1,15 @@
 #!/usr/bin/env python
 # coding=utf-8
 
-import time
 import os
 import math
-import shutil
+import copy
 import numpy as np
 import pandas as pd
 import logging
 import datetime
 import calendar
-import threading
-from multiprocessing import Process, Queue, Lock
+from multiprocessing import Process
 import feature_handler
 
 import sys
@@ -379,6 +377,37 @@ class DataSet :
         if feature == 'language_of_song' : feature = 'Language'
         return self.songs_.loc[self.songs_.song_id == song, feature].values.tolist()[0]
 
+    def MergingDataInFeatureProcess(self, process_id, st, ed, feature_list, filepath) :
+        """
+        """
+        logging.info('process %s start!' % process_id)
+        index_list = []
+        cnt = 0
+        for name, group in self.groups_items_[st:ed] :
+            index_list.extend(group)
+            cnt += 1
+            if cnt % 50 == 0 :
+                logging.info('now is the %dth group for process %s, total %d' % (cnt, process_id, ed - st))
+            for feature in feature_list :
+                self.data_null_.loc[group, feature] = self.GetSongInfoForMergingData(name, feature)
+        self.data_null_.loc[index_list].to_csv(filepath + '_' + process_id + '.csv', index = False)
+
+    def MergingDataInLabelProcess(self, process_id, st, ed, weekday_1st, filepath) :
+        """
+        """
+        logging.info('process %s start!' % process_id)
+        for i in xrange(st, ed) :
+            logging.info('now is the %dth day for process %s' % (i + 1, process_id))
+            day = i + 1
+            weekday = (weekday_1st + i) % 7
+
+            table = copy.deepcopy(self.table_)
+
+            table['label_weekday'] = weekday
+            table['label_day'] = day
+
+            table.to_csv(filepath + '_' + str(i + 1) + '.csv', index = False)
+
     def MergeData(self, x, y, y_month) :
         """
         merge the feature and label by user_song
@@ -386,35 +415,74 @@ class DataSet :
         data = pd.merge(x, y, how = 'outer', on = 'user_song')
         data.sort_values(['user_song', 'label_day'])
         
+        # y exist, x not exitst
+        feature_list = ['gender_of_artist', 'artist_id', 'language_of_song']
+
+        if len(feature_list) > 0 :
+            data['song_id'] = data.user_song.map(lambda v : v.split('#')[1])
+
+            self.data_null_ = data[data[feature_list[0]].isnull()] 
+            groups = self.data_null_.groupby(['song_id']).groups
+            data = data[data[feature_list[0]].notnull()] 
+            self.groups_items_ = groups.items()
+            total_items = len(self.groups_items_)
+
+            seperate = [0]
+            for i in xrange(1, self.n_jobs_) :
+                cnt = (total_items - seperate[-1] + self.n_jobs_ - i) / (self.n_jobs_ - i + 1)
+                seperate.append(seperate[-1] + cnt)
+            seperate.append(total_items)
+
+            filepath = ROOT + '/data/merge_data_feature_' + self.month_name_[y_month]
+
+            processes = []
+            for i in xrange(self.n_jobs_) :
+                process = Process(target = self.MergingDataInFeatureProcess, args = (str(i + 1), seperate[i], seperate[i + 1], feature_list, filepath))
+                process.start()
+                processes.append(process)
+            for process in processes:
+                process.join()
+
+            for i in xrange(self.n_jobs_) :
+                temp = pd.read_csv(filepath + '_' + str(i + 1) + '.csv')
+                data = pd.concat([data, temp])
+                os.remove(filepath + '_' + str(i + 1) + '.csv')
+
+            self.data_null_ = None
+            data.drop('song_id', inplace = True, axis = 1)
+            for feature in feature_list :
+                if data[data[feature].isnull()].shape[0] > 0 :
+                    logging.error('still has null value after filling for feature %s' % feature)
+        
+        # x exist, y not exist
+        self.table_ = data[data.label_day.isnull()] 
+        data = data[data.label_day.isnull() == False]
+
         # how many days in y_month
         days = calendar.monthrange(int(self.month_name_[y_month][:4]), int(self.month_name_[y_month][4:]))[1]
         # the weekday for 1st
         weekday_1st = StrToDate(self.month_name_[y_month] + '01').weekday()
 
-        # y exist, x not exitst
-        data['song_id'] = data.user_song.map(lambda v : v.split('#')[1])
-        feature_list = ['gender_of_artist', 'artist_id', 'language_of_song']
-        for feature in feature_list :
-            groups = data[data[feature].isnull()].groupby(['song_id']).groups
-            for name, group in groups.items() :
-                data.loc[group, feature] = self.GetSongInfoForMergingData(name, feature)
+        seperate = [0]
+        for i in xrange(1, self.n_jobs_) :
+            cnt = (days - seperate[-1] + self.n_jobs_ - i) / (self.n_jobs_ - i + 1)
+            seperate.append(seperate[-1] + cnt)
+        seperate.append(days)
+        filepath = ROOT + '/data/merge_data_label_' + self.month_name_[y_month]
 
-            # data.loc[data[feature].isnull(), feature] = data.loc[data[feature].isnull(), 'user_song'].map(lambda v : self.GetSongInfoForMergingData(v, feature))
-        data.drop('song_id', inplace = True, axis = 1)
-        
-        # x exist, y not exist
-        table = data[data.label_day.isnull()] 
-        data = data[data.label_day.isnull() == False]
+        processes = []
+        for i in xrange(self.n_jobs_) :
+            process = Process(target = self.MergingDataInLabelProcess, args = (str(i + 1), seperate[i], seperate[i + 1], weekday_1st, filepath))
+            process.start()
+            processes.append(process)
+        for process in processes:
+            process.join()
 
         for i in xrange(days) :
-            day = i + 1
-            weekday = (weekday_1st + i) % 7
-
-            table['label_weekday'] = weekday
-            table['label_day'] = day
-
-            data = pd.concat([data, table])
-
+            temp = pd.read_csv(filepath + '_' + str(i + 1) + '.csv')
+            data = pd.concat([data, temp])
+            os.remove(filepath + '_' + str(i + 1) + '.csv')
+        
         return data
 
     def GetData(self, month_for_test = 2) :
