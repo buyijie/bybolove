@@ -4,7 +4,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
-import utils.data_set as data_set
 from sklearn.ensemble import GradientBoostingRegressor
 import logging.config
 from sklearn.externals import joblib
@@ -25,7 +24,6 @@ def usage() :
     """
     print 'gbdt.py usage:'
     print '-h, --help: print help message'
-    print '-j, --jobs: the number of processes to handler, default = 1'
     print '-t, --type: the type of data need to handler, default = unit'
 
 def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feature_names = []):
@@ -102,9 +100,6 @@ if __name__ == "__main__":
         if o in ('-h', '--help') :
             usage()
             sys.exit(1)
-        elif o in ('-j', '--jobs') :
-            print a
-            n_jobs = int(a)
         elif o in ('-t', '--type') :
             type = a
         else:
@@ -112,5 +107,4 @@ if __name__ == "__main__":
             usage()
             sys.exit(1)
 
-    dataset = data_set.DataSet(type = type, n_jobs = n_jobs)
-    solver.main(dataset, gbdt_solver) 
+    solver.main(gbdt_solver, type = type) 

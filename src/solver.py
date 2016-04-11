@@ -4,20 +4,20 @@
 import sys
 import logging
 import datetime
-import utils.evaluate as evaluate
+from utils import evaluate, data_handler
 
 sys.path.insert(0, '..')
 from configure import *
 
-def main(dataset, solver) :
+def main(solver, type = type) :
     """
     """
     now_time = datetime.datetime.now()
     now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H:%M:%S')
 
-    training, testing = dataset.GetData()
+    training, testing = data_handler.GetData(type = type)
     columns = training.columns.tolist()
-    columns.remove('user_song')
+    columns.remove('song_id')
     columns.remove('artist_id')
     columns.remove('label_plays')
     train_x = training.ix[:, columns].values
@@ -25,5 +25,5 @@ def main(dataset, solver) :
     test_x = testing.ix[:, columns].values
     test_y = testing.label_plays.values
     predict = solver(train_x, train_y, test_x, now_time, test_y = test_y, feature_names = columns)
-    score = evaluate.evaluate(predict.tolist(), test_y.tolist(), testing.artist_id.values.tolist(), testing.label_day.values.tolist())
+    score = evaluate.evaluate(predict.tolist(), test_y.tolist(), testing.artist_id.values.tolist(), testing.label_day.values.astype(int).tolist())
     logging.info('the final score is %.10f' % score)

@@ -16,6 +16,7 @@ def binary_feature (data, feature) :
     """
     logging.info ('convert to binary variable for feature: %s' % feature)
     data = pd.concat ([data , pd.get_dummies (data[feature]).rename (columns = lambda x : str (feature) + "_" + str (x))] , axis = 1)
+    data.drop(feature, axis = 1, inplace = True)
     return data
 
 def scale_feature (data, feature) :
@@ -31,4 +32,5 @@ def scale_feature (data, feature) :
     logging.info ('standardization for feature: %s' % feature)
     scaler = preprocessing.StandardScaler ()
     data[feature + '_scaled'] = scaler.fit_transform (data[feature])
+    data.drop(feature, axis = 1, inplace = True)
     return data
