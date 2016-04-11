@@ -9,7 +9,7 @@ import pandas as pd
 import logging
 import datetime
 import calendar
-from multiprocessing import Process
+from multiprocessing import Process, Manager
 import feature_handler
 
 import sys
@@ -66,6 +66,7 @@ class DataSet :
         self.data_ = pd.merge(self.action_, self.songs_, how = 'left', on = 'song_id')
         self.data_['Ds'] = self.data_['Ds'].map(lambda v: str(v))
         self.data_['publish_time'] = self.data_['publish_time'].map(lambda v: str(v))
+        del self.action_
         print self.data_.shape
 
     def GetTimePeriod(self) :
@@ -74,7 +75,7 @@ class DataSet :
         """
         logging.info('get time period')
         time_period = sorted(map(lambda v: StrToDate(v), set(self.data_.Ds.values)))
-        self.time_period_ = [time_period[0], time_period[-1]] 
+        self.time_period_ = [time_period[0], time_period[-1]]
         logging.info('the time period: %s to %s'%(time_period[0].strftime("%Y-%m-%d"), time_period[-1].strftime("%Y-%m-%d")))
 
     def SplitByMonth(self) :
@@ -97,7 +98,7 @@ class DataSet :
                 self.month_data_.append(self.data_[st:ed + 1])
                 self.month_data_[-1] = self.month_data_[-1].sort_values(['user_id', 'song_id', 'Ds'], ascending = True)
                 logging.info('for the month %s: from %d to %d, total %d' % (month, st, ed, ed - st + 1))
-                st = ed + 1 
+                st = ed + 1
                 month = self.data_.iloc[i,:].Ds[:6]
         self.month_name_.append(month)
         self.month_data_.append(self.data_[st:])
@@ -108,7 +109,7 @@ class DataSet :
         """
         """
         n = self.month_data_[month].shape[0]
-        ed = st 
+        ed = st
         entry_st = self.month_data_[month].iloc[st,:]
         while ed < n :
             entry_ed = self.month_data_[month].iloc[ed,:]
@@ -116,12 +117,12 @@ class DataSet :
                 ed += 1
             else : break
         return ed
-    
+
     def GetSameUserSongDateTriple(self, month, st) :
         """
         """
         n = self.month_data_[month].shape[0]
-        ed = st 
+        ed = st
         entry_st = self.month_data_[month].iloc[st,:]
         while ed < n :
             entry_ed = self.month_data_[month].iloc[ed,:]
@@ -143,15 +144,15 @@ class DataSet :
     def GetPublishedDays(self, sub) :
         """
         """
-        # from the publish time to 1st day of this month 
+        # from the publish time to 1st day of this month
         today = StrToDate(sub.iloc[0,:].Ds)
-        return (today - StrToDate(sub.iloc[0,:].publish_time)).days - today.day 
+        return (today - StrToDate(sub.iloc[0,:].publish_time)).days - today.day
 
     def GetArtistID(self, sub) :
         """
         """
         return sub.iloc[0,:].artist_id
-    
+
     def GetIsCollect(self, sub) :
         """
         """
@@ -163,7 +164,7 @@ class DataSet :
                 is_collect = 1
                 break
         return is_collect
-    
+
     def GetIsDownload(self, sub) :
         """
         """
@@ -184,7 +185,7 @@ class DataSet :
             entry = sub.iloc[pre,:]
             if entry.action_type == 1:
                 total_plays += 1
-        return total_plays 
+        return total_plays
 
     def GetTotalPlaysForLabel(self, month, today, sub) :
         """
@@ -195,7 +196,7 @@ class DataSet :
             entry = sub.iloc[pre,:]
             if entry.action_type == 1:
                 total_plays += 1
-        return total_plays 
+        return total_plays
 
     def GetWeekday(self, month, today, sub) :
         """
@@ -207,12 +208,12 @@ class DataSet :
         """
         """
         return today.day
-    
+
     def SingleFeatureProcess(self, id, month, function, st, ed, file_path, consecutive_days = None):
         """
         """
         logging.info("process %s start!" % id)
-        user_song_st, user_song_ed = st, st 
+        user_song_st, user_song_ed = st, st
         while user_song_st < ed :
             user_song_ed = self.GetSameUserSongPair(month, user_song_st)
             n = user_song_ed - user_song_st
@@ -220,18 +221,18 @@ class DataSet :
             entry = sub.iloc[0,:]
             if user_song_st / 1000 != user_song_ed / 1000 :
                 logging.info('process %s: handering %d samples!' % (id, user_song_st - st + 1))
-            
+
             if consecutive_days == None :
                 value = function(sub)
             else :
                 lastday = calendar.monthrange(int(self.month_name_[month][:4]), int(self.month_name_[month][4:]))[1]
                 begin_day = StrToDate(self.month_name_[month][:4] + str(lastday - consecutive_days + 1))
-                
+
                 user_song_date_st = 0
                 while user_song_date_st < n and StrToDate(sub.iloc[user_song_date_st,:].Ds) < begin_day :
                     user_song_date_st += 1
                 value = function(sub[user_song_date_st:])
-                
+
             if value != None:
                 with open(file_path, 'a') as out :
                     out.write(entry.user_id + '#' + entry.song_id + ',' + str(value) + '\n')
@@ -242,7 +243,7 @@ class DataSet :
         """
         """
         logging.info("process %s start!" % id)
-        user_song_st, user_song_ed = st, st 
+        user_song_st, user_song_ed = st, st
         one_day = datetime.timedelta(days = 1)
         while user_song_st < ed :
             user_song_ed = self.GetSameUserSongPair(month, user_song_st)
@@ -253,7 +254,7 @@ class DataSet :
                 logging.info('process %s: handering %d samples!' % (id, user_song_st - st + 1))
 
             user_song_date_st = 0
-            begin_day = StrToDate(self.month_name_[month] + '01') 
+            begin_day = StrToDate(self.month_name_[month] + '01')
             today = begin_day
             while today.month == begin_day.month:
                 if user_song_date_st < n and DateToStr(today) == sub.iloc[user_song_date_st,:].Ds :
@@ -267,7 +268,7 @@ class DataSet :
                     with open(file_path, 'a') as out :
                         out.write(entry.user_id + '#' + entry.song_id + ',' + str(value) + '\n')
                 today = today + one_day
- 
+
             user_song_st = user_song_ed
 
     def GetFeatureInOneMonth(self, month, feature_name, extract_function, process_function, consecutive_days = None) :
@@ -320,21 +321,21 @@ class DataSet :
     def GetFeature(self, consecutive_recent = [14, 7, 3], gap_month = 1, gap_day = 0) :
         """
         feature list:
-        1. gender of artist 
+        1. gender of artist
         2. language of song
-        3. how many days have been published for this song 
-        4. the number of total plays for current user and current song in consecutive_all days 
-        5. the number of total plays for current user and current song in consecutive_last days 
-        6. the number of total plays for current user and all the song in consecutive_all days 
-        7. the number of total plays for current user and all the song in consecutive_last days 
-        8. the proportion of the songs that the current user plays in consecutive_all days 
-        9. the proportion of the songs that the currect user plays in consecutive_last days 
-        10. the proportion of the artist that the current user plays in consecutive_all days 
-        11. the proportion of the artist that the currect user plays in consecutive_last days 
-        12. whether the current user have collected this song 
+        3. how many days have been published for this song
+        4. the number of total plays for current user and current song in consecutive_all days
+        5. the number of total plays for current user and current song in consecutive_last days
+        6. the number of total plays for current user and all the song in consecutive_all days
+        7. the number of total plays for current user and all the song in consecutive_last days
+        8. the proportion of the songs that the current user plays in consecutive_all days
+        9. the proportion of the songs that the currect user plays in consecutive_last days
+        10. the proportion of the artist that the current user plays in consecutive_all days
+        11. the proportion of the artist that the currect user plays in consecutive_last days
+        12. whether the current user have collected this song
         13. whether the current user have downloaded this song
         """
-        logging.info("start generating data according to feature list") 
+        logging.info("start generating data according to feature list")
         self.consecutive_recent_ = consecutive_recent
         self.gap_month_ = gap_month
         self.gap_day_ = gap_day
@@ -357,6 +358,9 @@ class DataSet :
         self.GetLabel('label_weekday', self.GetWeekday)
         self.GetLabel('label_day', self.GetDay)
 
+        del self.data_
+        del self.month_data_
+
     def GetFromFile(self, month, feature_name) :
         """
         """
@@ -377,20 +381,18 @@ class DataSet :
         if feature == 'language_of_song' : feature = 'Language'
         return self.songs_.loc[self.songs_.song_id == song, feature].values.tolist()[0]
 
-    def MergingDataInFeatureProcess(self, process_id, st, ed, feature_list, filepath) :
+    def MergingDataInFeatureProcess(self, process_id, data, st, ed, feature_list, filepath) :
         """
         """
         logging.info('process %s start!' % process_id)
-        index_list = []
         cnt = 0
-        for name, group in self.groups_items_[st:ed] :
-            index_list.extend(group)
+        for name, group in data.groups_items[st:ed]:
             cnt += 1
             if cnt % 50 == 0 :
-                logging.info('now is the %dth group for process %s, total %d' % (cnt, process_id, ed - st))
+                logging.info('now is the %dth group for process %s' % (cnt, process_id))
             for feature in feature_list :
-                self.data_null_.loc[group, feature] = self.GetSongInfoForMergingData(name, feature)
-        self.data_null_.loc[index_list].to_csv(filepath + '_' + process_id + '.csv', index = False)
+                data.data_null.loc[group,feature] = self.GetSongInfoForMergingData(name, feature)
+        data.data_null.to_csv(filepath + '_' + process_id + '.csv', index = False)
 
     def MergingDataInLabelProcess(self, process_id, st, ed, weekday_1st, filepath) :
         """
@@ -412,50 +414,55 @@ class DataSet :
         """
         merge the feature and label by user_song
         """
+
         data = pd.merge(x, y, how = 'outer', on = 'user_song')
         data.sort_values(['user_song', 'label_day'])
-        
+
         # y exist, x not exitst
         feature_list = ['gender_of_artist', 'artist_id', 'language_of_song']
 
         if len(feature_list) > 0 :
-            data['song_id'] = data.user_song.map(lambda v : v.split('#')[1])
+            logging.info('the size of data before droping null value is (%d %d)' % data.shape)
+            data = data[data[feature_list[0]].notnull()]
+            logging.info('the size of data after droping null value is (%d %d)' % data.shape)
+            # TO DO: how to file the null value more efficient
+#            data['song_id'] = data.user_song.map(lambda v : v.split('#')[1])
+#            manager = Manager()
+#            global_data = manager.Namespace()
+#
+#            global_data.data_null = data[data[feature_list[0]].isnull()]
+#            data = data[data[feature_list[0]].notnull()]
+#            groups = global_data.data_null.groupby(['song_id']).groups
+#            global_data.groups_items = groups.items()
+#            total_items = len(global_data.groups_items)
+#            seperate = [0]
+#            for i in xrange(1, self.n_jobs_) :
+#                cnt = (total_items - seperate[-1] + self.n_jobs_ - i) / (self.n_jobs_ - i + 1)
+#                seperate.append(seperate[-1] + cnt)
+#            seperate.append(total_items)
+#
+#            filepath = ROOT + '/data/merge_data_feature_' + self.month_name_[y_month]
+#
+#            processes = []
+#            for i in xrange(self.n_jobs_) :
+#                process = Process(target = self.MergingDataInFeatureProcess, args = (str(i + 1), global_data, seperate[i], seperate[i + 1], feature_list, filepath))
+#                process.start()
+#                processes.append(process)
+#            for process in processes:
+#                process.join()
+#
+#            for i in xrange(self.n_jobs_) :
+#                temp = pd.read_csv(filepath + '_' + str(i + 1) + '.csv')
+#                data = pd.concat([data, temp])
+#                os.remove(filepath + '_' + str(i + 1) + '.csv')
+#
+#            data.drop('song_id', inplace = True, axis = 1)
+#            for feature in feature_list :
+#                if global_data.data_null[global_data.data_null[feature].isnull()].shape[0] > 0 :
+#                    logging.error('still has null value after filling for feature %s' % feature)
 
-            self.data_null_ = data[data[feature_list[0]].isnull()] 
-            groups = self.data_null_.groupby(['song_id']).groups
-            data = data[data[feature_list[0]].notnull()] 
-            self.groups_items_ = groups.items()
-            total_items = len(self.groups_items_)
-
-            seperate = [0]
-            for i in xrange(1, self.n_jobs_) :
-                cnt = (total_items - seperate[-1] + self.n_jobs_ - i) / (self.n_jobs_ - i + 1)
-                seperate.append(seperate[-1] + cnt)
-            seperate.append(total_items)
-
-            filepath = ROOT + '/data/merge_data_feature_' + self.month_name_[y_month]
-
-            processes = []
-            for i in xrange(self.n_jobs_) :
-                process = Process(target = self.MergingDataInFeatureProcess, args = (str(i + 1), seperate[i], seperate[i + 1], feature_list, filepath))
-                process.start()
-                processes.append(process)
-            for process in processes:
-                process.join()
-
-            for i in xrange(self.n_jobs_) :
-                temp = pd.read_csv(filepath + '_' + str(i + 1) + '.csv')
-                data = pd.concat([data, temp])
-                os.remove(filepath + '_' + str(i + 1) + '.csv')
-
-            self.data_null_ = None
-            data.drop('song_id', inplace = True, axis = 1)
-            for feature in feature_list :
-                if data[data[feature].isnull()].shape[0] > 0 :
-                    logging.error('still has null value after filling for feature %s' % feature)
-        
         # x exist, y not exist
-        self.table_ = data[data.label_day.isnull()] 
+        self.table_ = data[data.label_day.isnull()]
         data = data[data.label_day.isnull() == False]
 
         # how many days in y_month
@@ -482,7 +489,8 @@ class DataSet :
             temp = pd.read_csv(filepath + '_' + str(i + 1) + '.csv')
             data = pd.concat([data, temp])
             os.remove(filepath + '_' + str(i + 1) + '.csv')
-        
+
+
         return data
 
     def GetData(self, month_for_test = 2) :
@@ -498,7 +506,7 @@ class DataSet :
         cnt_month = []
         for month in  xrange(len(self.month_name_) - self.gap_month_) :
             first = True
-            y_data = None 
+            y_data = None
             for label in label_list :
                 data = self.GetFromFile(month + self.gap_month_, label)
                 if first : y_data = data
@@ -532,6 +540,7 @@ class DataSet :
         binary_feature = ['gender_of_artist', 'language_of_song', 'label_day', 'label_weekday']
         for feature in binary_feature:
             self.final_data_ = feature_handler.binary_feature(self.final_data_, feature)
+        logging.info('the final data size is (%d %d)' % self.final_data_.shape)
 
         testing = sum(cnt_month[-month_for_test:])
         return self.final_data_[:-testing], self.final_data_[-testing:]
@@ -539,3 +548,4 @@ class DataSet :
 
 if __name__ == '__main__' :
     data = DataSet()
+

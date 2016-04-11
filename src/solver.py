@@ -4,7 +4,7 @@
 import sys
 import logging
 import datetime
-import utils.evaluate as evaluate 
+import utils.evaluate as evaluate
 
 sys.path.insert(0, '..')
 from configure import *
@@ -24,6 +24,6 @@ def main(dataset, solver) :
     train_y = training.label_plays.values
     test_x = testing.ix[:, columns].values
     test_y = testing.label_plays.values
-    predict = solver(train_x, train_y, test_x, now_time)
+    predict = solver(train_x, train_y, test_x, now_time, test_y = test_y, feature_names = columns)
     score = evaluate.evaluate(predict.tolist(), test_y.tolist(), testing.artist_id.values.tolist(), testing.label_day.values.tolist())
     logging.info('the final score is %.10f' % score)
