@@ -25,5 +25,5 @@ def main(solver, type = type) :
     test_x = testing.ix[:, columns].values
     test_y = testing.label_plays.values
     predict = solver(train_x, train_y, test_x, now_time, test_y = test_y, feature_names = columns)
-    score = evaluate.evaluate(predict.tolist(), test_y.tolist(), testing.artist_id.values.tolist(), testing.label_day.values.astype(int).tolist())
+    score = evaluate.evaluate(predict.astype(int).tolist(), test_y.tolist(), testing.artist_id.values.tolist(), testing.label_day.values.astype(int).tolist())
     logging.info('the final score is %.10f' % score)
