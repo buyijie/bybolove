@@ -101,7 +101,7 @@ class FeatureExtract:
         self.month_name_.append(month)
         pkl.store(self.month_name_, ROOT + '/data/month_name.pkl')
         self.month_data_.append(self.data_[st:])
-        self.month_data_[-1] = self.month_data_[-1].sort_values(['user_id', 'song_id', 'Ds'], ascending = True)
+        self.month_data_[-1] = self.month_data_[-1].sort_values(['song_id', 'Ds'], ascending = True)
         logging.info('for the month %s: from %d to final, total %d' % (month, st, self.month_data_[-1].shape[0]))
 
     def GetSameSong(self, month, st) :
@@ -240,13 +240,13 @@ class FeatureExtract:
             if song_st / 1000 != song_ed / 1000 :
                 logging.info('process %s: handering %d samples!' % (id, song_st - st + 1))
 
-            song_date_st = 0
+            song_date_st = song_st 
             begin_day = StrToDate(self.month_name_[month] + '01')
             today = begin_day
             while today.month == begin_day.month:
-                if song_date_st < n and DateToStr(today) == sub.iloc[song_date_st,:].Ds :
+                if song_date_st < ed and DateToStr(today) == self.month_data_[month].iloc[song_date_st,:].Ds :
                     song_date_ed = self.GetSameSongDatePair(month, song_date_st)
-                    value = function(month, today, sub.iloc[song_date_st:song_date_ed])
+                    value = function(month, today, self.month_data_[month].iloc[song_date_st:song_date_ed])
                     song_date_st = song_date_ed
                 else:
                     value = function(month, today, sub.iloc[0:0])
@@ -286,6 +286,8 @@ class FeatureExtract:
         with open (filepath, 'w') as out :
             out.write ('song_id,' + feature_name + '\n')
         for i in xrange(self.n_jobs_) :
+            if not os.path.exists(filepath[:-4] + str(i) + filepath[-4:]) :
+                continue
             os.system("cat " + filepath[:-4] + str(i) + filepath[-4:] + " >> " + filepath)
             os.remove(filepath[:-4] + str(i) + filepath[-4:])
 
@@ -304,6 +306,70 @@ class FeatureExtract:
         logging.info('get label: %s' % label_name)
         for month in xrange(len(self.month_data_)) :
             self.GetFeatureInOneMonth(month, label_name, function, self.LabelProcess)
+    
+    def GetFromFile(self,feature_name, month) :
+        """
+        """
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+        if not os.path.exists(filepath) :
+            logging.error(filepath + ' doesn\'t exists!')
+            exit(-1)
+        return pd.read_csv(filepath)
+
+    def GetTotalPlaysForArtistInOneMonth(self, feature_name, base_feature, feature_for_artist ,month) :
+        """
+        """
+        logging.info('get feature for %s in month % s' % (feature_name, self.month_name_[month]))
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+        if os.path.exists(filepath) :
+            logging.info(filepath + ' exists!')
+            return
+        base = self.GetFromFile(base_feature, month)
+        artist = self.GetFromFile(feature_for_artist, month)
+        data = pd.merge(base, artist, how = 'left', on = 'song_id')
+        data[feature_name] = data[base_feature].groupby(data[feature_for_artist]).transform('sum')
+        data.drop(base_feature, inplace = True, axis = 1)
+        data.drop(feature_for_artist, inplace = True, axis = 1)
+        data.to_csv(filepath, index = False)
+        logging.info('the feature %s is write into %s' % (feature_name, filepath))
+
+    def GetTotalPlaysForArtist(self, feature_name, base_feature, feature_for_artist) :
+        """
+        """
+        logging.info('used %s to generate %s'% (base_feature, feature_name))
+        for month in xrange(len(self.month_data_)) :
+            self.GetTotalPlaysForArtistInOneMonth(feature_name, base_feature, feature_for_artist, month)
+
+    def GetCombinationFeatureInOneMonth(self, A, B, month, ope) :
+        """
+        """
+        feature_name = A + '_' + ope + '_' + B
+        logging.info('get combination feature from %s and %s by %s in month % s' % (A, B, ope, self.month_name_[month]))
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+        if os.path.exists(filepath) :
+            logging.info(filepath + ' exists!')
+            return
+        data_a = self.GetFromFile(A, month)
+        data_b = self.GetFromFile(B, month)
+        data = pd.merge(data_a, data_b, on = 'song_id')
+        if ope == 'div' :
+            data[feature_name] = data[A] * 1.0 / data[B]
+        elif ope == 'mul' :
+            data[feature_name] = data[A] * data[B]
+        else :
+            logging.error('the operation of %s is invalid' % ope)
+            exit(-1)
+        data.drop(A, axis = 1, inplace = True)
+        data.drop(B, axis = 1, inplace = True)
+        data.to_csv(filepath, index = False)
+        logging.info('the feature %s is write into %s' % (feature_name, filepath))
+
+    def GetCombinationFeature(self, A, B, ope) :
+        """
+        """
+        logging.info('get combination feature from %s and %s by %s'% (A, B, ope))
+        for month in xrange(len(self.month_data_)) :
+            self.GetCombinationFeatureInOneMonth(A, B, month, ope)
 
     def GetFeature(self) :
         """
@@ -337,6 +403,14 @@ class FeatureExtract:
 
         self.GetSingleFeature('is_collect', self.GetIsCollect)
         self.GetSingleFeature('is_download', self.GetIsDownload)
+            
+        self.GetTotalPlaysForArtist('total_plays_for_artist_all' ,'total_plays_for_one_song_all', 'artist_id')
+        for consecutive_days in self.consecutive_recent_:
+            self.GetTotalPlaysForArtist('total_plays_for_artist_recent_' + str(consecutive_days) ,'total_plays_for_one_song_recent_' + str(consecutive_days), 'artist_id')
+
+        self.GetCombinationFeature('total_plays_for_one_song_all', 'total_plays_for_artist_all', 'div') 
+        for consecutive_days in self.consecutive_recent_:
+            self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) ,'total_plays_for_artist_recent_' + str(consecutive_days), 'div')
 
         self.GetLabel('label_plays', self.GetTotalPlaysForLabel)
         self.GetLabel('label_weekday', self.GetWeekday)

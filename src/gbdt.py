@@ -38,7 +38,7 @@ def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feat
         'verbose' : 2
     }
 
-    with open(ROOT + '/result/' + now_time + '.param', 'w') as out :
+    with open(ROOT + '/result/' + now_time + '/parameters.param', 'w') as out :
         for key, val in params.items():
             out.write(str(key) + ': ' + str(val) + '\n')
 
@@ -81,7 +81,7 @@ def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feat
         plt.xlabel('Boosting Iterations')
         plt.ylabel('Deviance')
 
-        plt.savefig(ROOT + '/result/' + now_time + '.jpg')
+        plt.savefig(ROOT + '/result/' + now_time + '/statistics.jpg')
 
     return predict
 

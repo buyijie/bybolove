@@ -14,6 +14,8 @@ def main(solver, type = type) :
     """
     now_time = datetime.datetime.now()
     now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H:%M:%S')
+    os.system('mkdir ' + ROOT + '/result/' + now_time)
+    os.system('mkdir ' + ROOT + '/result/' + now_time + '/model')
 
     training, testing = data_handler.GetData(type = type)
     columns = training.columns.tolist()
@@ -27,3 +29,5 @@ def main(solver, type = type) :
     predict = solver(train_x, train_y, test_x, now_time, test_y = test_y, feature_names = columns)
     score = evaluate.evaluate(predict.astype(int).tolist(), test_y.tolist(), testing.artist_id.values.tolist(), testing.label_day.values.astype(int).tolist())
     logging.info('the final score is %.10f' % score)
+    with open(ROOT + '/result/' + now_time + '/parameters.param', 'a') as out :
+        out.write('score: %.10f\n' % score)

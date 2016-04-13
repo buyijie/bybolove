@@ -195,9 +195,14 @@ class FeatureMerge :
     def GetData(self, month_for_test = 2) :
         """
         """
-        feature_list = ['artist_id', 'Gender', 'Language', 'published_days', 'total_plays_for_one_song_all', 'is_collect', 'is_download']
+        feature_list = ['artist_id', 'Gender', 'Language', 'published_days', 'total_plays_for_one_song_all', 'total_plays_for_artist_all','is_collect', 'is_download']
         for consecutive_days in self.consecutive_recent_ :
             feature_list.append('total_plays_for_one_song_recent_' + str(consecutive_days))
+        for consecutive_days in self.consecutive_recent_ :
+            feature_list.append('total_plays_for_artist_recent_' + str(consecutive_days))
+        feature_list.append('total_plays_for_one_song_all_div_total_plays_for_artist_all')
+        for consecutive_days in self.consecutive_recent_ :
+            feature_list.append('total_plays_for_one_song_recent_%s_div_total_plays_for_artist_recent_%s' % (str(consecutive_days), str(consecutive_days)))
         label_list = ['label_plays', 'label_day', 'label_weekday']
 
         self.final_data_ = None
