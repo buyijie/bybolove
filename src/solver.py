@@ -19,6 +19,7 @@ def main(solver, type = type) :
 
     training, testing = data_handler.GetData(type = type)
     columns = training.columns.tolist()
+    columns.remove('month')
     columns.remove('song_id')
     columns.remove('artist_id')
     columns.remove('label_plays')
@@ -27,7 +28,7 @@ def main(solver, type = type) :
     test_x = testing.ix[:, columns].values
     test_y = testing.label_plays.values
     predict = solver(train_x, train_y, test_x, now_time, test_y = test_y, feature_names = columns)
-    score = evaluate.evaluate(predict.astype(int).tolist(), test_y.tolist(), testing.artist_id.values.tolist(), testing.label_day.values.astype(int).tolist())
+    score = evaluate.evaluate(predict.astype(int).tolist(), test_y.tolist(), testing.artist_id.values.tolist(), testing.month.values.astype(int).tolist(), testing.label_day.values.astype(int).tolist())
     logging.info('the final score is %.10f' % score)
     with open(ROOT + '/result/' + now_time + '/parameters.param', 'a') as out :
         out.write('score: %.10f\n' % score)

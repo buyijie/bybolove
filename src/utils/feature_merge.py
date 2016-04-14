@@ -226,6 +226,7 @@ class FeatureMerge :
                 first = False
 
             final_data = self.MergeData(x_data, y_data, month + self.gap_month_)
+            final_data['month'] = self.month_name_[month + self.gap_month_]
 
             cnt_month.append(final_data.shape[0])
             if first_month:

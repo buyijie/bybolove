@@ -4,7 +4,7 @@
 import logging 
 import math
 
-def evaluate(predict, label, artist, day) :
+def evaluate(predict, label, artist, month, day) :
     """
     """
     if len(predict) != len(label):
@@ -14,7 +14,7 @@ def evaluate(predict, label, artist, day) :
     artist_day_predict = {}
     artist_day_label = {}
     for row in xrange(len(predict)) :
-        artist_day = artist[row] + '#' + str(day[row])
+        artist_day = artist[row] + '#' + str(month[row]) + '#' + str(day[row])
         artist_day_predict.setdefault(artist_day, 0)
         artist_day_label.setdefault(artist_day, 0)
 
@@ -23,6 +23,7 @@ def evaluate(predict, label, artist, day) :
 
     artist_all = {}
     artist_error = {}
+    
     for key in artist_day_predict.keys() :
         artist = key.split('#')[0]
         error = ((artist_day_predict[key] - artist_day_label[key] + 1) / (artist_day_label[key] + 1)) ** 2
