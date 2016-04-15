@@ -228,12 +228,17 @@ class FeatureMerge :
             final_data = self.MergeData(x_data, y_data, month + self.gap_month_)
             final_data['month'] = self.month_name_[month + self.gap_month_]
 
+            # no data in 2015-08-31, we don't have exactly label in this day
+            if self.month_name_[month + self.gap_month_] == "201508" :
+                final_data = final_data[final_data.label_day.isin(['31', 31]) == False]
+
             cnt_month.append(final_data.shape[0])
             if first_month:
                 self.final_data_ = final_data
             else :
                 self.final_data_ = pd.concat([self.final_data_, final_data])
             first_month = False
+
 
         # replace the null value by zero
         for label in label_list:

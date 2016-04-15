@@ -26,6 +26,8 @@ def main(solver, type = type) :
     os.system('mkdir ' + ROOT + '/result/' + now_time + '/model')
 
     training, testing = data_handler.GetData(type = type)
+    training.label_plays += 1
+    testing.label_plays += 1
     columns = training.columns.tolist()
     columns.remove('month')
     columns.remove('song_id')

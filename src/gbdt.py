@@ -26,6 +26,11 @@ def usage() :
     print '-h, --help: print help message'
     print '-t, --type: the type of data need to handler, default = unit'
 
+def loss_function(label, predict) :
+    """
+    """
+    return sum((abs(label - predict) / label) ** 2) / len(label)
+
 def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feature_names = []):
     """
     """
@@ -43,13 +48,13 @@ def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feat
             out.write(str(key) + ': ' + str(val) + '\n')
 
     gb = GradientBoostingRegressor(**params)
-    gb.fit(train_x, train_y)
-    joblib.dump(gb, ROOT + '/result/' + now_time + '.pkl')
+    gb.fit(train_x, train_y, 1.0 / train_y ** 2)
+    joblib.dump(gb, ROOT + '/result/' + now_time + '/model/gbdt.pkl')
     predict = gb.predict(test_x)
 
     if test_y.shape[0]  :
-        logging.info('the mean_squared_error in Training set is %.4f' % mean_squared_error(train_y, gb.predict(train_x)))
-        logging.info('the mean_squared_error in Testing set is %.4f' % mean_squared_error(test_y, gb.predict(test_x)))
+        logging.info('the loss in Training set is %.4f' % loss_function(train_y, gb.predict(train_x)))
+        logging.info('the loss in Testing set is %.4f' % loss_function(test_y, gb.predict(test_x)))
 
         plt.figure(figsize=(12, 6))
         # Plot feature importance
@@ -71,7 +76,7 @@ def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feat
         plt.subplot(1, 2, 2)
         test_score = np.zeros((params['n_estimators'],), dtype=np.float64)
         for i, y_pred in enumerate(gb.staged_predict(test_x)):
-            test_score[i] = gb.loss_(test_y, y_pred)
+            test_score[i] = loss_function(test_y, y_pred)
         plt.title('Deviance')
         plt.plot(np.arange(params['n_estimators']) + 1, gb.train_score_, 'b-',
                           label='Training Set Deviance')

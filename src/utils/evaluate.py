@@ -13,8 +13,10 @@ def evaluate(predict, label, artist, month, day) :
 
     artist_day_predict = {}
     artist_day_label = {}
+    date_set = set()
     for row in xrange(len(predict)) :
         artist_day = artist[row] + '#' + str(month[row]) + '#' + str(day[row])
+        date_set.add(str(int(month[row])) + '#' + str(int(day[row])))
         artist_day_predict.setdefault(artist_day, 0)
         artist_day_label.setdefault(artist_day, 0)
 
@@ -34,6 +36,9 @@ def evaluate(predict, label, artist, month, day) :
         artist_error[artist] += error
 
     score = 0 
+    all = 0
     for artist in artist_all.keys():
-        score += (1 - math.sqrt(artist_error[artist]/ 61)) * math.sqrt(artist_all[artist])
+        score += (1 - math.sqrt(artist_error[artist] / len(date_set))) * math.sqrt(artist_all[artist])
+        all += math.sqrt(artist_all[artist])
+    logging.info('the total score is %.10f' % all)
     return score
