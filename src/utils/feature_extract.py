@@ -3,6 +3,7 @@
 
 import os
 import math
+import time
 import pandas as pd
 import pkl
 import logging
@@ -73,6 +74,7 @@ class FeatureExtract:
         self.data_ = pd.merge(self.action_, self.songs_, how = 'left', on = 'song_id')
         self.data_['Ds'] = self.data_['Ds'].map(lambda v: str(v))
         self.data_['publish_time'] = self.data_['publish_time'].map(lambda v: str(v))
+        self.data_['gmt_create'] = self.data_['gmt_create'].map(lambda v : time.gmtime(int(v)).tm_hour)
         del self.action_
         logging.info('the size of whole data after joining is (%d %d)' % self.data_.shape)
 
@@ -130,29 +132,34 @@ class FeatureExtract:
             else : break
         return ed
 
-    def GetArtistGender(self, sub) :
+    def GetArtistGender(self, sub, condition_hour = None) :
         """
         """
         return sub.iloc[0,:].Gender
 
-    def GetSongLanguage(self, sub) :
+    def GetSongLanguage(self, sub, condition = None) :
         """
         """
         return sub.iloc[0,:].Language
 
-    def GetPublishedDays(self, sub) :
+    def GetPublishedDays(self, sub, condition_hour = None) :
         """
         """
         # from the publish time to 1st day of this month
         today = StrToDate(sub.iloc[0,:].Ds)
         return (today - StrToDate(sub.iloc[0,:].publish_time)).days - today.day
 
-    def GetArtistID(self, sub) :
+    def GetArtistID(self, sub, condition_hour = None) :
         """
         """
         return sub.iloc[0,:].artist_id
 
-    def GetIsCollect(self, sub) :
+    def GetSongInitPlays(self, sub, condition_hour = None) :
+        """
+        """
+        return sub.iloc[0,:].song_init_plays
+
+    def GetIsCollect(self, sub, condition_hour = None) :
         """
         """
         n = sub.shape[0]
@@ -164,7 +171,7 @@ class FeatureExtract:
                 break
         return is_collect
 
-    def GetIsDownload(self, sub) :
+    def GetIsDownload(self, sub, condition_hour = None) :
         """
         """
         n = sub.shape[0]
@@ -175,10 +182,15 @@ class FeatureExtract:
                 is_download = 1
         return is_download
 
-    def GetTotalPlaysForFeature(self, sub) :
+    def GetTotalPlaysForFeature(self, sub, condition_hour = None) :
         """
         """
         return len(sub.groupby(['action_type']).groups.get(1, []))
+
+    def GetTotalPlaysForFeatureInSpecificHour(self, sub, condition_hour) :
+        """
+        """
+        return len(sub.groupby(['action_type', 'gmt_create']).groups.get((1, condition_hour), []))
 
     def GetTotalPlaysForLabel(self, month, today, sub) :
         """
@@ -196,7 +208,7 @@ class FeatureExtract:
         """
         return today.day
 
-    def SingleFeatureProcess(self, id, month, function, st, ed, file_path, consecutive_days = None):
+    def SingleFeatureProcess(self, id, month, function, st, ed, file_path, consecutive_days = None, condition_hour = None):
         """
         """
         logging.info("process %s start!" % id)
@@ -210,7 +222,7 @@ class FeatureExtract:
                 logging.info('process %s: handering %d samples!' % (id, song_st - st + 1))
 
             if consecutive_days == None :
-                value = function(sub)
+                value = function(sub, condition_hour)
             else :
                 lastday = calendar.monthrange(int(self.month_name_[month][:4]), int(self.month_name_[month][4:]))[1]
                 begin_day = StrToDate(self.month_name_[month][:4] + str(lastday - consecutive_days + 1))
@@ -218,7 +230,7 @@ class FeatureExtract:
                 song_date_st = 0
                 while song_date_st < n and StrToDate(sub.iloc[song_date_st,:].Ds) < begin_day :
                     song_date_st += 1
-                value = function(sub[song_date_st:])
+                value = function(sub[song_date_st:], condition_hour)
 
             if value != None:
                 with open(file_path, 'a') as out :
@@ -258,7 +270,7 @@ class FeatureExtract:
 
             song_st = song_ed
 
-    def GetFeatureInOneMonth(self, month, feature_name, extract_function, process_function, consecutive_days = None) :
+    def GetFeatureInOneMonth(self, month, feature_name, extract_function, process_function, consecutive_days = None, condition_hour = None) :
         """
         """
         logging.info('get feature %s in month %s' %(feature_name, self.month_name_[month]))
@@ -277,7 +289,7 @@ class FeatureExtract:
 
         processes = []
         for i in xrange(self.n_jobs_) :
-            process = Process(target = process_function, args = (str(i + 1), month, extract_function, seperate[i], seperate[i + 1], filepath[:-4] + str(i) + filepath[-4:], consecutive_days))
+            process = Process(target = process_function, args = (str(i + 1), month, extract_function, seperate[i], seperate[i + 1], filepath[:-4] + str(i) + filepath[-4:], consecutive_days, condition_hour))
             process.start()
             processes.append(process)
         for process in processes:
@@ -293,12 +305,12 @@ class FeatureExtract:
 
         logging.info('the feature %s is write into %s' % (feature_name, filepath))
 
-    def GetSingleFeature(self, feature_name, function, consecutive_days = None) :
+    def GetSingleFeature(self, feature_name, function, consecutive_days = None, condition_hour = None) :
         """
         """
         logging.info('get feature: %s' % feature_name)
         for month in xrange(len(self.month_data_)) :
-            self.GetFeatureInOneMonth(month, feature_name, function, self.SingleFeatureProcess, consecutive_days)
+            self.GetFeatureInOneMonth(month, feature_name, function, self.SingleFeatureProcess, consecutive_days, condition_hour)
 
     def GetLabel(self, label_name, function) :
         """
@@ -396,22 +408,40 @@ class FeatureExtract:
         self.GetSingleFeature('Language', self.GetSongLanguage)
         self.GetSingleFeature('published_days', self.GetPublishedDays)
         self.GetSingleFeature('artist_id', self.GetArtistID)
+        self.GetSingleFeature('song_init_plays', self.GetSongInitPlays)
 
         self.GetSingleFeature('total_plays_for_one_song_all', self.GetTotalPlaysForFeature)
+        for hour in xrange(24) :
+            self.GetSingleFeature('total_plays_for_one_song_all_for_hour_%d' % hour, self.GetTotalPlaysForFeatureInSpecificHour, condition_hour = hour)
         for consecutive_days in self.consecutive_recent_:
-            self.GetSingleFeature('total_plays_for_one_song_recent_' + str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days)
+            self.GetSingleFeature('total_plays_for_one_song_recent_' + str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days = consecutive_days)
+            for hour in xrange(24) :
+                self.GetSingleFeature('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_hour_%d' % hour, self.GetTotalPlaysForFeatureInSpecificHour, consecutive_days = consecutive_days, condition_hour = hour)
 
         self.GetSingleFeature('is_collect', self.GetIsCollect)
         self.GetSingleFeature('is_download', self.GetIsDownload)
             
         self.GetTotalPlaysForArtist('total_plays_for_artist_all' ,'total_plays_for_one_song_all', 'artist_id')
+        for hour in xrange(24) :
+            self.GetTotalPlaysForArtist('total_plays_for_artist_all_for_hour_%d' % hour ,'total_plays_for_one_song_all_for_hour_%d' % hour, 'artist_id')
         for consecutive_days in self.consecutive_recent_:
             self.GetTotalPlaysForArtist('total_plays_for_artist_recent_' + str(consecutive_days) ,'total_plays_for_one_song_recent_' + str(consecutive_days), 'artist_id')
+            for hour in xrange(24) :
+                self.GetTotalPlaysForArtist('total_plays_for_artist_recent_' + str(consecutive_days) + '_for_hour_%d' % hour ,'total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_hour_%d' % hour, 'artist_id')
 
         self.GetCombinationFeature('total_plays_for_one_song_all', 'total_plays_for_artist_all', 'div') 
+        for hour in xrange(24) :
+            self.GetCombinationFeature('total_plays_for_artist_all_for_hour_%d' % hour, 'total_plays_for_artist_all', 'div') 
+            self.GetCombinationFeature('total_plays_for_one_song_all_for_hour_%d' % hour, 'total_plays_for_artist_all_for_hour_%d' % hour, 'div') 
+            self.GetCombinationFeature('total_plays_for_one_song_all_for_hour_%d' % hour, 'total_plays_for_one_song_all', 'div') 
+            
         for consecutive_days in self.consecutive_recent_:
             self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) ,'total_plays_for_artist_recent_' + str(consecutive_days), 'div')
-
+            for hour in xrange(24) :
+                self.GetCombinationFeature('total_plays_for_artist_recent_' + str(consecutive_days) + '_for_hour_%d' % hour,'total_plays_for_artist_recent_' + str(consecutive_days) , 'div')
+                self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_hour_%d' % hour,'total_plays_for_artist_recent_' + str(consecutive_days) + '_for_hour_%d' % hour, 'div')
+                self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_hour_%d' % hour,'total_plays_for_one_song_recent_' + str(consecutive_days), 'div')
+ 
         self.GetLabel('label_plays', self.GetTotalPlaysForLabel)
         self.GetLabel('label_weekday', self.GetWeekday)
         self.GetLabel('label_day', self.GetDay)

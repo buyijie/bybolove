@@ -195,11 +195,25 @@ class FeatureMerge :
     def GetData(self, month_for_test = 2) :
         """
         """
-        feature_list = ['artist_id', 'Gender', 'Language', 'published_days', 'total_plays_for_one_song_all', 'total_plays_for_artist_all','is_collect', 'is_download']
+        feature_list = ['artist_id', 'Gender', 'Language', 'published_days', 'total_plays_for_one_song_all', 'total_plays_for_artist_all','is_collect', 'is_download', 'song_init_plays']
+        for hour in xrange(24) :
+            feature_list.append('total_plays_for_one_song_all_for_hour_%d' % hour)
+            feature_list.append('total_plays_for_one_song_all_for_hour_%d_div_total_plays_for_one_song_all' % hour)
         for consecutive_days in self.consecutive_recent_ :
             feature_list.append('total_plays_for_one_song_recent_' + str(consecutive_days))
+            for hour in xrange(24) :
+                feature_list.append('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_hour_%d' % hour)
+                feature_list.append('total_plays_for_one_song_recent_%d_for_hour_%d_div_total_plays_for_one_song_recent_%d' % (consecutive_days, hour, consecutive_days))
+        for hour in xrange(24) :
+            feature_list.append('total_plays_for_artist_all_for_hour_%d' % hour)
+            feature_list.append('total_plays_for_artist_all_for_hour_%d_div_total_plays_for_artist_all' % hour)
+            feature_list.append('total_plays_for_one_song_all_for_hour_%d_div_total_plays_for_artist_all_for_hour_%d' % (hour, hour))
         for consecutive_days in self.consecutive_recent_ :
             feature_list.append('total_plays_for_artist_recent_' + str(consecutive_days))
+            for hour in xrange(24) :
+                feature_list.append('total_plays_for_artist_recent_%d_for_hour_%d' % (consecutive_days, hour))
+                feature_list.append('total_plays_for_artist_recent_%d_for_hour_%d_div_total_plays_for_artist_recent_%d' % (consecutive_days, hour, consecutive_days))
+                feature_list.append('total_plays_for_one_song_recent_%d_for_hour_%d_div_total_plays_for_artist_recent_%d_for_hour_%d' % (consecutive_days, hour, consecutive_days, hour))
         feature_list.append('total_plays_for_one_song_all_div_total_plays_for_artist_all')
         for consecutive_days in self.consecutive_recent_ :
             feature_list.append('total_plays_for_one_song_recent_%s_div_total_plays_for_artist_recent_%s' % (str(consecutive_days), str(consecutive_days)))
