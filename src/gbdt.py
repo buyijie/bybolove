@@ -8,6 +8,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 import logging.config
 from sklearn.externals import joblib
 from sklearn.metrics import mean_squared_error
+from utils import feature_reduction
 import sys
 import getopt
 import solver
@@ -112,4 +113,4 @@ if __name__ == "__main__":
             usage()
             sys.exit(1)
 
-    solver.main(gbdt_solver, type = type) 
+    solver.main(gbdt_solver, type = type, dimreduce_func = feature_reduction.undo) 

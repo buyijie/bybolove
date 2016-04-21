@@ -4,7 +4,7 @@
 import sys
 import logging
 import datetime
-from utils import evaluate, data_handler
+from utils import evaluate, data_handler, feature_reduction
 
 sys.path.insert(0, '..')
 from configure import *
@@ -17,7 +17,7 @@ def HandlePredict(predict) :
     predict = map(lambda v : max(0, int(v)), predict)
     return predict
 
-def main(solver, type = type) :
+def main(solver, type = type, dimreduce_func = feature_reduction.undo) :
     """
     """
     now_time = datetime.datetime.now()
@@ -37,6 +37,8 @@ def main(solver, type = type) :
     train_y = training.label_plays.values
     test_x = testing.ix[:, columns].values
     test_y = testing.label_plays.values
+    # feature reduction
+    train_x, test_x, columns = dimreduce_func(train_x, train_y, test_x, test_y, columns)
     predict = solver(train_x, train_y, test_x, now_time, test_y = test_y, feature_names = columns)
     predict = HandlePredict(predict.tolist())
     score = evaluate.evaluate(predict, test_y.tolist(), testing.artist_id.values.tolist(), testing.month.values.astype(int).tolist(), testing.label_day.values.astype(int).tolist())
