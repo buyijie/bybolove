@@ -8,6 +8,7 @@ import xgboost as xgb
 import logging.config
 from sklearn.externals import joblib
 from sklearn.metrics import mean_squared_error
+from utils import feature_reduction
 import sys
 import getopt
 import solver
@@ -35,13 +36,16 @@ def xgboost_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), f
 
     logging.info('start training the xgboost model')
     params = {
-        'eta' : 0.01,
-        'objective' : 'reg:linear'
+        'eta' : 0.03,
+        'silent': 1,
+        'objective' : 'reg:linear',
+        'max_depth' : 4,
+        'seed' : 1000000007,
     }
 
     watchlist=[(dtrain,'train'),(dtest,'test')]
 
-    num_round=500
+    num_round=750
 
     with open(ROOT + '/result/' + now_time + '/parameters.param', 'w') as out :
         for key, val in params.items():
@@ -98,7 +102,6 @@ def xgboost_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), f
         print "not zero label test data : %d" % sum(test_y!=0)
 
     return predict
-#    return np.zeros(predict.shape)
 
 if __name__ == "__main__":
     try:
@@ -121,4 +124,4 @@ if __name__ == "__main__":
             usage()
             sys.exit(1)
 
-    solver.main(xgboost_solver, type = type) 
+    solver.main(xgboost_solver, type = type, dimreduce_func = feature_reduction.gbdt_dimreduce_threshold) 

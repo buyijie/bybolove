@@ -20,8 +20,9 @@ def evaluate(predict, label, artist, month, day) :
         artist_day_predict.setdefault(artist_day, 0)
         artist_day_label.setdefault(artist_day, 0)
 
-        artist_day_predict[artist_day] += predict[row]
-        artist_day_label[artist_day] += label[row]
+# predict and label -1
+        artist_day_predict[artist_day] += predict[row]-1
+        artist_day_label[artist_day] += label[row]-1
 
     artist_all = {}
     artist_error = {}
