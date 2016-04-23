@@ -66,6 +66,7 @@ class FeatureExtract:
         self.action_.columns = ['user_id', 'song_id', 'gmt_create', 'action_type', 'Ds']
         self.label_.columns = ['artist_id', 'Plays', 'Ds']
         self.song_id_set_ = self.songs_.song_id.values.tolist().sort()
+        self.artist_list_ = sorted(set(self.songs_['artist_id'])) 
 
     def Join(self) :
         """
@@ -360,6 +361,32 @@ class FeatureExtract:
         for month in xrange(len(self.month_data_)) :
             self.GetTotalPlaysForArtistInOneMonth(feature_name, base_feature, feature_for_artist, month)
 
+    def GetTotalPlaysForEveryArtistInOneMonth(self, feature_name, base_feature, feature_for_artist, month) :
+        """
+        """
+        logging.info('get feature for %s in month %s' % (feature_name, self.month_name_[month]))
+        base = self.GetFromFile(base_feature, month)
+        artist = self.GetFromFile(feature_for_artist, month)
+        data = pd.merge(base, artist, how = 'left', on = 'song_id')       
+        group = data[base_feature].groupby(data[feature_for_artist]).groups
+
+        for idx in xrange(len(self.artist_list_)):
+            filepath = ROOT + '/data/' + feature_name+'_'+str(idx)+ '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+            if os.path.exists(filepath) :
+                logging.info(filepath + ' exists!')
+                continue 
+            data[feature_name+'_'+str(idx)] = 0 if group.get(self.artist_list_[idx])==None else sum(group.get(self.artist_list_[idx]))
+            data.to_csv(filepath, columns=[feature_name+'_'+str(idx)] ,index = False)
+            logging.info('the feature %s is write into %s' % (feature_name+'_'+str(idx), filepath))
+           
+
+    def GetTotalPlaysForEveryArtist(self, feature_name, base_feature, feature_for_artist) :
+        """
+        """
+        logging.info('used %s to generate %s'% (base_feature, feature_name))
+        for month in xrange(len(self.month_data_)) :
+            self.GetTotalPlaysForEveryArtistInOneMonth(feature_name, base_feature, feature_for_artist, month)
+
     def GetCombinationFeatureInOneMonth(self, A, B, month, ope) :
         """
         """
@@ -441,6 +468,8 @@ class FeatureExtract:
         self.GetSingleFeature('is_download', self.GetIsDownload)
             
         self.GetTotalPlaysForArtist('total_plays_for_artist_all' ,'total_plays_for_one_song_all', 'artist_id')
+        # get the plays of all artist, include the artist of the song
+        self.GetTotalPlaysForEveryArtist('total_plays_for_every_artist_all','total_plays_for_one_song_all','artist_id')
         
         for when,interval in HourInterval.items():
             self.GetTotalPlaysForArtist('total_plays_for_artist_all_for_'+when, 'total_plays_for_one_song_all_for_'+when, 'artist_id')
