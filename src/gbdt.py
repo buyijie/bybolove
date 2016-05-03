@@ -7,8 +7,7 @@ import logging
 from sklearn.ensemble import GradientBoostingRegressor
 import logging.config
 from sklearn.externals import joblib
-from sklearn.metrics import mean_squared_error
-from utils import feature_reduction
+from utils import feature_reduction, evaluate
 import sys
 import getopt
 import solver
@@ -32,7 +31,7 @@ def loss_function(label, predict) :
     """
     return sum((abs(label - predict) / label) ** 2) / len(label)
 
-def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feature_names = []):
+def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y = np.array([]), feature_names = []):
     """
     """
     logging.info('start training the gbdt model')
@@ -51,17 +50,17 @@ def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feat
     gb = GradientBoostingRegressor(**params)
     gb.fit(train_x, train_y, 1.0 / train_y ** 2)
     joblib.dump(gb, ROOT + '/result/' + now_time + '/model/gbdt.pkl')
-    predict = gb.predict(test_x)
+    predict = gb.predict(validation_x)
 
-    if test_y.shape[0]  :
+    if validation_y.shape[0]  :
         logging.info('the loss in Training set is %.4f' % loss_function(train_y, gb.predict(train_x)))
-        logging.info('the loss in Testing set is %.4f' % loss_function(test_y, gb.predict(test_x)))
+        logging.info('the loss in Validation set is %.4f' % loss_function(validation_y, gb.predict(validation_x)))
 
         plt.figure(figsize=(12, 6))
         # Plot feature importance
         plt.subplot(1, 2, 1)
         if (feature_names) == 0:
-            feature_names = [str(i + 1) for i in xrange(test_x.shape[0])]
+            feature_names = [str(i + 1) for i in xrange(validation_x.shape[0])]
         feature_names = np.array(feature_names)
         feature_importance = gb.feature_importances_
         feature_importance = 100.0 * (feature_importance / feature_importance.max())
@@ -76,8 +75,8 @@ def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feat
         # Plot training deviance
         plt.subplot(1, 2, 2)
         test_score = np.zeros((params['n_estimators'],), dtype=np.float64)
-        for i, y_pred in enumerate(gb.staged_predict(test_x)):
-            test_score[i] = loss_function(test_y, y_pred)
+        for i, y_pred in enumerate(gb.staged_predict(validation_x)):
+            test_score[i] = loss_function(validation_y, y_pred)
         plt.title('Deviance')
         plt.plot(np.arange(params['n_estimators']) + 1, gb.train_score_, 'b-',
                           label='Training Set Deviance')
@@ -89,7 +88,7 @@ def gbdt_solver(train_x, train_y, test_x, now_time , test_y = np.array([]), feat
 
         plt.savefig(ROOT + '/result/' + now_time + '/statistics.jpg')
 
-    return predict
+    return predict, gb.predict(test_x)
 
 
 if __name__ == "__main__":
@@ -114,3 +113,5 @@ if __name__ == "__main__":
             sys.exit(1)
 
     solver.main(gbdt_solver, type = type, dimreduce_func = feature_reduction.undo) 
+    solver.main(gbdt_solver, gap_month = 2, type = type, dimreduce_func = feature_reduction.undo) 
+    evaluate.mergeoutput()

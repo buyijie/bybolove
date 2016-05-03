@@ -33,7 +33,7 @@ def pca_solver (data, K = PCACOMPONENT) :
     logging.info ('finished pca')
     return pca_data
 
-def pca (train_x,  train_y, validation_x, validation_y, feature_name) :
+def pca (train_x,  train_y, validation_x, validation_y, test_x, feature_name) :
     """
     """
     if train_x.shape[0] != train_y.shape[0] or validation_x.shape[0] != validation_y.shape[0] :
@@ -43,14 +43,14 @@ def pca (train_x,  train_y, validation_x, validation_y, feature_name) :
         logging.error('the number of feature in different data set is mismatch')
         exit(-1)
     
-    pca_data = np.vstack ([train_x, validation_x])
+    pca_data = np.vstack ([train_x, validation_x, test_x])
     pca_data = pca_solver (pca_data)
     new_feature_name = [str(i + 1) for i in xrange(pca_data.shape[1])]
     logging.info('finished feature reduction, the original feature is :')
     print feature_name
     logging.info('the new feature is :')
     print new_feature_name
-    return pca_data[:train_x.shape[0],:], pca_data[train_x.shape[0]:], new_feature_name
+    return pca_data[:train_x.shape[0],:], pca_data[train_x.shape[0]:-test_x.shape[0]], pca_data[-test_x.shape[0]:], new_feature_name
 
 def gbdt_feature_importance (train, label) :
     if os.path.exists (ROOT + '/data/feature_importance') :
@@ -78,6 +78,7 @@ def gbdt_dimreduce_threshold (train_x, train_y, validation_x, validation_y, feat
 
     new_train = train_x[:,important_index][:,sorted_index]
     new_validation = validation_x[:,important_index][:,sorted_index]
+    new_test = test_x[:,important_index][:,sorted_index]
     new_feature_name = [feature_name[i] for i in important_index]
     new_feature_name = [new_feature_name[i] for i in sorted_index]
     logging.info ('after gbdt dim-reducing : (%d %d)' % (new_train.shape))
@@ -85,9 +86,9 @@ def gbdt_dimreduce_threshold (train_x, train_y, validation_x, validation_y, feat
     print feature_name
     logging.info('the new feature is :')
     print new_feature_name
-    return new_train, new_validation, new_feature_name
+    return new_train, new_validation, new_test, new_feature_name
 
-def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, feature_name, feature_number = GBDTFEATURENUMBER) :
+def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x, feature_name, feature_number = GBDTFEATURENUMBER) :
     """
     """
     logging.info ('begin gbdt_dimreduce_number')
@@ -100,20 +101,21 @@ def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, feature
     
     new_train = train_x[:,sorted_index]
     new_validation = validation_x[:,sorted_index]
+    new_test = test_x[:,sorted_index]
     new_feature_name = [feature_name[i] for i in sorted_index]
     logging.info ('after gbdt dim-reducing : (%d %d)' % (new_train.shape))
     logging.info('finished feature reduction, the original feature is :')
     print feature_name
     logging.info('the new feature is :')
     print new_feature_name
-    return new_train, new_validation, new_feature_name
+    return new_train, new_validation, new_test, new_feature_name
 
-def undo (train_x, train_y, validation_x, validation_y, feature_name) :
+def undo (train_x, train_y, validation_x, validation_y, test_x, feature_name) :
     """
     nothing to do
     """
     logging.info('no feature reduction')
-    return train_x, validation_x, feature_name
+    return train_x, validation_x, test_x, feature_name
 
 if __name__ == '__main__' :
     pass

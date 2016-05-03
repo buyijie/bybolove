@@ -58,12 +58,17 @@ class FeatureMerge :
 
         self.songs_.columns = ['song_id', 'artist_id', 'publish_time', 'song_init_plays', 'Language', 'Gender']
         self.artist_list_ = sorted(set(self.songs_['artist_id']))
+        self.songs_list_ = sorted(set(self.songs_['song_id']))
 
     def GetFromFile(self, month, feature_name) :
         """
         """
-        logging.info('get feature %s in month %s from file' %(feature_name, self.month_name_[month]))
-        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+        if type(month) == int:
+            month_name = self.month_name_[month]
+        else :
+            month_name = month
+        logging.info('get feature %s in month %s from file' %(feature_name, month_name))
+        filepath = ROOT + '/data/' + feature_name + '_' + month_name + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '.csv'
         if not os.path.exists(filepath) :
             logging.error(filepath + ' doesn\'t exists!')
             exit(1)
@@ -111,7 +116,7 @@ class FeatureMerge :
 
             table.to_csv(filepath + '_' + str(i + 1) + '.csv', index = False)
 
-    def MergeData(self, x, y, y_month) :
+    def MergeData(self, x, y, month_name) :
         """
         merge the feature and label by song_id
         """
@@ -138,7 +143,7 @@ class FeatureMerge :
                 seperate.append(seperate[-1] + cnt)
             seperate.append(total_items)
 
-            filepath = ROOT + '/data/merge_data_feature_' + self.month_name_[y_month]
+            filepath = ROOT + '/data/merge_data_feature_' + month_name
 
             processes = []
             for i in xrange(self.n_jobs_) :
@@ -166,17 +171,17 @@ class FeatureMerge :
         self.table_ = data[data.label_day.isnull()]
         data = data[data.label_day.isnull() == False]
 
-        # how many days in y_month
-        days = calendar.monthrange(int(self.month_name_[y_month][:4]), int(self.month_name_[y_month][4:]))[1]
+        # how many days in month_name 
+        days = calendar.monthrange(int(month_name[:4]), int(month_name[4:]))[1]
         # the weekday for 1st
-        weekday_1st = StrToDate(self.month_name_[y_month] + '01').weekday()
+        weekday_1st = StrToDate(month_name + '01').weekday()
 
         seperate = [0]
         for i in xrange(1, self.n_jobs_) :
             cnt = (days - seperate[-1] + self.n_jobs_ - i) / (self.n_jobs_ - i + 1)
             seperate.append(seperate[-1] + cnt)
         seperate.append(days)
-        filepath = ROOT + '/data/merge_data_label_' + self.month_name_[y_month]
+        filepath = ROOT + '/data/merge_data_label_' + month_name 
 
         processes = []
         for i in xrange(self.n_jobs_) :
@@ -247,6 +252,7 @@ class FeatureMerge :
         self.final_data_ = None
         first_month = True
         cnt_month = []
+        # the data for training and validation
         for month in  xrange(len(self.month_name_) - self.gap_month_) :
             first = True
             y_data = None
@@ -264,7 +270,7 @@ class FeatureMerge :
                 else : x_data[feature] = data[feature]
                 first = False
 
-            final_data = self.MergeData(x_data, y_data, month + self.gap_month_)
+            final_data = self.MergeData(x_data, y_data, self.month_name_[month + self.gap_month_])
             final_data['month'] = self.month_name_[month + self.gap_month_]
 
             # no data in 2015-08-31, we don't have exactly label in this day
@@ -278,6 +284,39 @@ class FeatureMerge :
                 self.final_data_ = pd.concat([self.final_data_, final_data])
             first_month = False
 
+        # the data for testing
+        for month in  [-1] :
+            date = StrToDate(self.month_name_[month] + '01')
+            new_month = date.month + self.gap_month_
+            new_year = date.year
+            new_day = date.day
+            if new_month > 12 :
+                new_year += 1
+                new_month -= 12
+            date = date.replace(year=new_year, month=new_month, day=new_day)
+            this_month = DateToStr(date)[:6]
+
+            first = True
+            x_data = []
+            for feature in feature_list:
+                data = self.GetFromFile(self.month_name_[month], feature)
+                if first : x_data = data
+                else : x_data[feature] = data[feature]
+                first = False
+            
+            days = calendar.monthrange(int(this_month[:4]), int(this_month[4:]))[1]
+            y_data = []
+            for song in self.songs_list_ : 
+                for day in xrange(1, days + 1) :
+                    y_data.append([song, 0, day, StrToDate(this_month + str(day)).weekday()])
+
+            y_data = pd.DataFrame(y_data)
+            y_data.columns = ['song_id', 'label_plays', 'label_day', 'label_weekday'] 
+
+            final_data = self.MergeData(x_data, y_data, this_month)
+            final_data['month'] = this_month
+            cnt_month.append(final_data.shape[0])
+            self.final_data_ = pd.concat([self.final_data_, final_data])
 
         # replace the null value by zero
         for label in label_list:
@@ -287,11 +326,14 @@ class FeatureMerge :
 
         logging.info('the final data size is (%d %d)' % self.final_data_.shape)
 
-        testing = sum(cnt_month[-month_for_test:])
+        training = sum(cnt_month[:-2])
+        validation = cnt_month[-2]
+        testing = cnt_month[-1]
         path = '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
 
-        self.final_data_[:-testing].to_csv(ROOT + '/data/final_data_training' + path, index = False)
-        self.final_data_[-testing:].to_csv(ROOT + '/data/final_data_testing' + path, index = False)
+        self.final_data_[:training].to_csv(ROOT + '/data/final_data_training' + path, index = False)
+        self.final_data_[training:training+testing].to_csv(ROOT + '/data/final_data_validation' + path, index = False)
+        self.final_data_[training+testing:].to_csv(ROOT + '/data/final_data_testing' + path, index = False)
 
 if __name__ == '__main__' :
     try:
@@ -302,7 +344,7 @@ if __name__ == '__main__' :
         sys.exit(2)
 
     n_jobs = 1
-    type = 'unit'
+    data_type = 'unit'
     for o, a in opts:
         if o in ('-h', '--help') :
             usage()
@@ -311,11 +353,12 @@ if __name__ == '__main__' :
             print a
             n_jobs = int(a)
         elif o in ('-t', '--type') :
-            type = a
+            data_type = a
         else:
             print 'invalid parameter:', o
             usage()
             sys.exit(1)
 
-    feature_merge = FeatureMerge(type = type, n_jobs = n_jobs)
+    feature_merge = FeatureMerge(type = data_type, n_jobs = n_jobs)
+    feature_merge = FeatureMerge(type = data_type, n_jobs = n_jobs, gap_month = 2)
 

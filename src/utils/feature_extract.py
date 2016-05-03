@@ -35,9 +35,8 @@ def StrToDate(str) :
 class FeatureExtract:
     """
     """
-    def __init__ (self, type = "unit", n_jobs = 1, consecutive_recent = [14, 7, 3], gap_month = 1, gap_day = 0) :
+    def __init__ (self, type = "unit", n_jobs = 1, consecutive_recent = [14, 7, 3],  gap_day = 0) :
         self.consecutive_recent_ = consecutive_recent
-        self.gap_month_ = gap_month
         self.gap_day_ = gap_day
         self.type_ = type
         self.n_jobs_ = n_jobs
@@ -247,7 +246,7 @@ class FeatureExtract:
 
             song_st = song_ed
 
-    def LabelProcess(self, id, month, function, st, ed, file_path, consecutive_days = None):
+    def LabelProcess(self, id, month, function, st, ed, file_path, consecutive_days = None, condition_hour = None):
         """
         """
         logging.info("process %s start!" % id)
@@ -283,7 +282,7 @@ class FeatureExtract:
         """
         """
         logging.info('get feature %s in month %s' %(feature_name, self.month_name_[month]))
-        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '.csv'
         if os.path.exists(filepath) :
             logging.info(filepath + ' exists!')
             return
@@ -331,7 +330,7 @@ class FeatureExtract:
     def GetFromFile(self,feature_name, month) :
         """
         """
-        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '.csv'
         if not os.path.exists(filepath) :
             logging.error(filepath + ' doesn\'t exists!')
             exit(-1)
@@ -341,7 +340,7 @@ class FeatureExtract:
         """
         """
         logging.info('get feature for %s in month % s' % (feature_name, self.month_name_[month]))
-        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '.csv'
         if os.path.exists(filepath) :
             logging.info(filepath + ' exists!')
             return
@@ -371,7 +370,7 @@ class FeatureExtract:
         group = data[base_feature].groupby(data[feature_for_artist]).groups
 
         for idx in xrange(len(self.artist_list_)):
-            filepath = ROOT + '/data/' + feature_name+'_'+str(idx)+ '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+            filepath = ROOT + '/data/' + feature_name+'_'+str(idx)+ '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '.csv'
             if os.path.exists(filepath) :
                 logging.info(filepath + ' exists!')
                 continue 
@@ -392,7 +391,7 @@ class FeatureExtract:
         """
         feature_name = A + '_' + ope + '_' + B
         logging.info('get combination feature from %s and %s by %s in month % s' % (A, B, ope, self.month_name_[month]))
-        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '.csv'
         if os.path.exists(filepath) :
             logging.info(filepath + ' exists!')
             return

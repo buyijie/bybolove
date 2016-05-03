@@ -17,7 +17,7 @@ def HandlePredict(predict) :
     predict = map(lambda v : max(0, int(v)), predict)
     return predict
 
-def main(solver, type = type, dimreduce_func = feature_reduction.undo) :
+def main(solver, gap_month = 1, type = 'unit', dimreduce_func = feature_reduction.undo) :
     """
     """
     now_time = datetime.datetime.now()
@@ -25,9 +25,9 @@ def main(solver, type = type, dimreduce_func = feature_reduction.undo) :
     os.system('mkdir ' + ROOT + '/result/' + now_time)
     os.system('mkdir ' + ROOT + '/result/' + now_time + '/model')
 
-    training, testing = data_handler.GetData(type = type)
+    training, validation, testing = data_handler.GetData(gap_month = gap_month, type = type)
     training.label_plays += 1
-    testing.label_plays += 1
+    validation.label_plays += 1
     columns = training.columns.tolist()
     columns.remove('month')
     columns.remove('song_id')
@@ -35,13 +35,16 @@ def main(solver, type = type, dimreduce_func = feature_reduction.undo) :
     columns.remove('label_plays')
     train_x = training.ix[:, columns].values
     train_y = training.label_plays.values
+    validation_x = validation.ix[:,columns].values
+    validation_y = validation.label_plays.values
     test_x = testing.ix[:, columns].values
-    test_y = testing.label_plays.values
     # feature reduction
-    train_x, test_x, columns = dimreduce_func(train_x, train_y, test_x, test_y, columns)
-    predict = solver(train_x, train_y, test_x, now_time, test_y = test_y, feature_names = columns)
-    predict = HandlePredict(predict.tolist())
-    score = evaluate.evaluate(predict, test_y.tolist(), testing.artist_id.values.tolist(), testing.month.values.astype(int).tolist(), testing.label_day.values.astype(int).tolist())
+    train_x, validation_x, test_x, columns = dimreduce_func(train_x, train_y, validation_x, validation_y, test_x, columns)
+    predict_validation, predict_test = solver(train_x, train_y, validation_x, test_x, now_time, validation_y = validation_y, feature_names = columns)
+    predict_validation = HandlePredict(predict_validation.tolist())
+    predict_test = HandlePredict(predict_test.tolist())
+    score = evaluate.evaluate(predict_validation, validation_y.tolist(), validation.artist_id.values.tolist(), validation.month.values.astype(int).tolist(), validation.label_day.values.astype(int).tolist())
+    evaluate.output(ROOT + '/predict_' + str(gap_month) ,predict_test, testing.artist_id.values.tolist(), testing.month.values.astype(int).tolist(), testing.label_day.values.astype(int).tolist())
     logging.info('the final score is %.10f' % score)
     with open(ROOT + '/result/' + now_time + '/parameters.param', 'a') as out :
         out.write('score: %.10f\n' % score)

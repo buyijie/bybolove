@@ -3,6 +3,13 @@
 
 import logging 
 import math
+import os
+import datetime
+import sys
+
+sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
+from configure import *
 
 def evaluate(predict, label, artist, month, day) :
     """
@@ -43,3 +50,30 @@ def evaluate(predict, label, artist, month, day) :
         all += math.sqrt(artist_all[artist])
     logging.info('the total score is %.10f' % all)
     return score
+
+def output(name, predict, artist, month, day) :
+    """
+    """
+    artist_day_predict = {}
+    for row in xrange(len(predict)) :
+        artist_day = artist[row] + '#' + str(month[row]) + '#' + str(day[row])
+        artist_day_predict.setdefault(artist_day, 0)
+
+        # predict and label -1
+        artist_day_predict[artist_day] += predict[row]-1
+
+    with open(name, 'w') as out :
+        for key, value in artist_day_predict.items() :
+            artist, month, day = key.split('#')
+            out.write('%s,%s%02d,%d\n' % (artist, month, int(day), value))
+
+def mergeoutput() :
+    """
+    """
+    now_time = datetime.datetime.now()
+    now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H:%M:%S')
+    os.system("cat " + ROOT + '/predict_1' + " >> " + ROOT + '/result/mars_tianchi_artist_plays_predict_' + now_time + '.csv')
+    os.system("cat " + ROOT + '/predict_2' + " >> " + ROOT + '/result/mars_tianchi_artist_plays_predict_' + now_time + '.csv')
+    os.system("rm " + ROOT + '/predict_1')
+    os.system("rm " + ROOT + '/predict_2')
+    
