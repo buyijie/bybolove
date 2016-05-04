@@ -21,7 +21,7 @@ def main(solver, gap_month = 1, type = 'unit', dimreduce_func = feature_reductio
     """
     """
     now_time = datetime.datetime.now()
-    now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H:%M:%S')
+    now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H%M%S')
     os.system('mkdir ' + ROOT + '/result/' + now_time)
     os.system('mkdir ' + ROOT + '/result/' + now_time + '/model')
 

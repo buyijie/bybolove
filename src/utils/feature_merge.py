@@ -332,8 +332,8 @@ class FeatureMerge :
         path = '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
 
         self.final_data_[:training].to_csv(ROOT + '/data/final_data_training' + path, index = False)
-        self.final_data_[training:training+testing].to_csv(ROOT + '/data/final_data_validation' + path, index = False)
-        self.final_data_[training+testing:].to_csv(ROOT + '/data/final_data_testing' + path, index = False)
+        self.final_data_[training:training+validation].to_csv(ROOT + '/data/final_data_validation' + path, index = False)
+        self.final_data_[training+validation:].to_csv(ROOT + '/data/final_data_testing' + path, index = False)
 
 if __name__ == '__main__' :
     try:

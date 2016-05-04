@@ -71,7 +71,7 @@ def mergeoutput() :
     """
     """
     now_time = datetime.datetime.now()
-    now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H:%M:%S')
+    now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H%M%S')
     os.system("cat " + ROOT + '/predict_1' + " >> " + ROOT + '/result/mars_tianchi_artist_plays_predict_' + now_time + '.csv')
     os.system("cat " + ROOT + '/predict_2' + " >> " + ROOT + '/result/mars_tianchi_artist_plays_predict_' + now_time + '.csv')
     os.system("rm " + ROOT + '/predict_1')
