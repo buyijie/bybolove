@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import logging
@@ -8,6 +9,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 import logging.config
 from sklearn.externals import joblib
 from utils import feature_reduction, evaluate
+from multiprocessing import Process
 import sys
 import getopt
 import solver
@@ -112,6 +114,16 @@ if __name__ == "__main__":
             usage()
             sys.exit(1)
 
-    solver.main(gbdt_solver, type = type, dimreduce_func = feature_reduction.undo) 
-    solver.main(gbdt_solver, gap_month = 2, type = type, dimreduce_func = feature_reduction.undo) 
+    solver.main(gbdt_solver, 1, type, feature_reduction.undo)
+    solver.main(gbdt_solver, 2, type, feature_reduction.undo)
+#    processes = []
+#    process1 = Process(target = solver.main, args = (gbdt_solver, 1, type, feature_reduction.undo))
+#    process1.start()
+#    processes.append(process1)
+#    time.sleep(10)
+#    process2 = Process(target = solver.main, args = (gbdt_solver, 2, type, feature_reduction.undo))
+#    process2.start()
+#    processes.append(process2)
+#    for process in processes:
+#        process.join()
     evaluate.mergeoutput()

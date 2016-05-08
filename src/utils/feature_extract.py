@@ -12,6 +12,7 @@ import datetime
 import calendar
 import getopt
 from multiprocessing import Process
+from statistic import *
 
 import sys
 sys.path.insert(0, '..')
@@ -397,7 +398,10 @@ class FeatureExtract:
             return
         data_a = self.GetFromFile(A, month)
         data_b = self.GetFromFile(B, month)
-        data = pd.merge(data_a, data_b, on = 'song_id')
+        # TO DO: be careful
+        data = data_a
+        data[B] = data_b[B]
+        #data = pd.merge(data_a, data_b, on = 'song_id')
         if ope == 'div' :
             data[feature_name] = data[A] * 1.0 / data[B]
         elif ope == 'mul' :
@@ -416,6 +420,89 @@ class FeatureExtract:
         logging.info('get combination feature from %s and %s by %s'% (A, B, ope))
         for month in xrange(len(self.month_data_)) :
             self.GetCombinationFeatureInOneMonth(A, B, month, ope)
+
+    def GetCovariacneBetweenSongAndArtist(self, song_id, artist_id, month) :
+        """
+        """
+        for_song = self.plays_for_song_in_each_day_[(self.plays_for_song_in_each_day_.song_id == song_id) & (self.plays_for_song_in_each_day_.month == int(self.month_name_[month]))]
+        for_artist = self.plays_for_artist_in_each_day_[(self.plays_for_artist_in_each_day_.artist_id == artist_id) & (self.plays_for_artist_in_each_day_.month == int(self.month_name_[month]))]
+        days = calendar.monthrange(int(self.month_name_[month][:4]), int(self.month_name_[month][4:]))[1]
+        songs = []
+        artists = []
+        for day in xrange(1, days + 1) :
+            song_plays = for_song[for_song.Ds == int('%s%02d' % (self.month_name_[month], day))].plays.values
+            if len(song_plays) == 0 :
+                song_plays = 0.0
+            else :
+                song_plays = song_plays[0]
+            artist_plays = for_artist[for_artist.Ds == int('%s%02d' % (self.month_name_[month], day))].plays.values
+            if len(artist_plays) == 0 :
+                artist_plays = 0.0
+            else :
+                artist_plays = artist_plays[0]
+            songs.append(song_plays)
+            artists.append(artist_plays)
+
+        return CorrelationCoefficient(songs, artists)
+
+    def CovarianceFeatureProcess(self, id, artist_id, month, st, ed, filepath) :
+        """
+        """
+        logging.info("process %s start!" % id)
+        with open(filepath, 'w') as out :
+            for i in xrange(st, ed) :
+                if (i - st + 1) % 100 == 0 :
+                    logging.info('process %s: handering %d samples!' % (id, i - st + 1))
+                song_id = self.song_id_set_[i]
+                out.write('%s,%.10f\n' % (song_id, self.GetCovariacneBetweenSongAndArtist(song_id, artist_id, month)))
+
+    def GetCovarianceFeatureInOneMonth(self, artist_id, month, feature_name) :
+        """
+        """
+        logging.info('get convariance feature for artist %s in month %s' % (artist_id, self.month_name_[month]))
+        filepath = ROOT + '/data/' + feature_name + '_'+ self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '.csv'
+        if os.path.exists(filepath) :
+            logging.info(filepath + ' exists!')
+            return
+
+        self.song_id_set_ = self.GetFromFile('Gender', month).song_id.values.tolist()
+        n = len(self.song_id_set_)
+
+        seperate = [0]
+        for i in xrange(1, self.n_jobs_) :
+            point = n / self.n_jobs_ * i
+            seperate.append(point)
+        seperate.append(n)
+
+        processes = []
+        for i in xrange(self.n_jobs_) :
+            process = Process(target = self.CovarianceFeatureProcess, args = (str(i + 1), artist_id, month, seperate[i], seperate[i + 1], filepath[:-4] + str(i) + filepath[-4:]))
+            process.start()
+            processes.append(process)
+        for process in processes:
+            process.join()
+
+        with open (filepath, 'w') as out :
+            out.write ('song_id,' + feature_name + '\n')
+        for i in xrange(self.n_jobs_) :
+            if not os.path.exists(filepath[:-4] + str(i) + filepath[-4:]) :
+                continue
+            os.system("cat " + filepath[:-4] + str(i) + filepath[-4:] + " >> " + filepath)
+            os.remove(filepath[:-4] + str(i) + filepath[-4:])
+
+        logging.info('the feature %s is write into %s' % (feature_name, filepath))
+
+
+    def GetCovarianceFeature(self) :
+        """
+        """
+        self.plays_for_song_in_each_day_ = pd.read_csv(ROOT + '/data/GetPlaysForEachSongInEachDay_' + self.type_ + '.csv')
+        self.plays_for_artist_in_each_day_ = pd.read_csv(ROOT + '/data/GetPlaysForEachArtistInEachDay_' + self.type_ + '.csv')
+        for idx in xrange(len(self.artist_list_)):
+            logging.info('get convariance feature for artist %s' % self.artist_list_[idx])
+            for month in xrange(len(self.month_data_)) :
+                self.GetCovarianceFeatureInOneMonth(self.artist_list_[idx], month, 'CovarianceBetweenSongAndArtist_%d' % idx)
+
 
     def GetFeature(self) :
         """
@@ -509,6 +596,10 @@ class FeatureExtract:
 #                self.GetCombinationFeature('total_plays_for_artist_recent_' + str(consecutive_days) + '_for_hour_%d' % hour,'total_plays_for_artist_recent_' + str(consecutive_days) , 'div')
 #                self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_hour_%d' % hour,'total_plays_for_artist_recent_' + str(consecutive_days) + '_for_hour_%d' % hour, 'div')
 #                self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_hour_%d' % hour,'total_plays_for_one_song_recent_' + str(consecutive_days), 'div')
+
+        self.GetCovarianceFeature()
+        for idx in xrange(len(self.artist_list_)) :
+            self.GetCombinationFeature('CovarianceBetweenSongAndArtist_%d' % idx, 'total_plays_for_every_artist_all_%d' % idx, 'mul') 
  
         self.GetLabel('label_plays', self.GetTotalPlaysForLabel)
         self.GetLabel('label_weekday', self.GetWeekday)

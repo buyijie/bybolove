@@ -203,8 +203,11 @@ class FeatureMerge :
         """
         feature_list = ['artist_id', 'Gender', 'Language', 'published_days', 'total_plays_for_one_song_all', 'total_plays_for_artist_all','is_collect', 'is_download', 'song_init_plays']
 
-        for idx in xrange(len(self.artist_list_)):
-            feature_list.append('total_plays_for_every_artist_all_'+str(idx))
+        #for idx in xrange(len(self.artist_list_)):
+        #    feature_list.append('total_plays_for_every_artist_all_'+str(idx))
+
+        for idx in xrange(len(self.artist_list_)) :
+            feature_list.append('CovarianceBetweenSongAndArtist_%d_mul_total_plays_for_every_artist_all_%d' % (idx, idx))
         
         HourInterval={'Morning':range(7,12),'Noon':range(12,15),'Afternoon':range(15,19),'Evening':range(19,25),'Midnight':range(1,7)}
         
