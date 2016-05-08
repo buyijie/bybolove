@@ -4,6 +4,7 @@
 import sys
 import time
 import logging
+import getopt
 import logging.config
 import pandas as pd
 
@@ -14,6 +15,13 @@ from configure import *
 logging.config.fileConfig('../logging.conf')
 logging.addLevelName(logging.WARNING, "\033[1;34m[%s]\033[1;0m" % logging.getLevelName(logging.WARNING))
 logging.addLevelName(logging.ERROR, "\033[1;41m[%s]\033[1;0m" % logging.getLevelName(logging.ERROR))
+
+def usage() :
+    """
+    """
+    print 'gbdt.py usage:'
+    print '-h, --help: print help message'
+    print '-t, --type: the type of data need to handler, default = unit'
 
 class DataStatistic :
     """
@@ -148,4 +156,24 @@ class DataStatistic :
 
 
 if __name__ == '__main__' :
-    ds = DataStatistic()
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'hj:t:', ['type=', 'jobs=', 'help'])
+    except getopt.GetoptError, err:
+        print str(err)
+        usage()
+        sys.exit(2)
+
+    n_jobs = 1
+    type = 'unit'
+    for o, a in opts:
+        if o in ('-h', '--help') :
+            usage()
+            sys.exit(1)
+        elif o in ('-t', '--type') :
+            type = a
+        else:
+            print 'invalid parameter:', o
+            usage()
+            sys.exit(1)
+
+    ds = DataStatistic(type = type)
