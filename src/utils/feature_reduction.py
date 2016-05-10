@@ -65,7 +65,7 @@ def gbdt_feature_importance (train, label) :
         pkl.store (feature_importance, ROOT + '/data/feature_importance')
     return feature_importance
 
-def gbdt_dimreduce_threshold (train_x, train_y, validation_x, validation_y, feature_name, feature_threshold = GBDTFEATURETHRESHOLD) :
+def gbdt_dimreduce_threshold (train_x, train_y, validation_x, validation_y, test_x,  feature_name, feature_threshold = GBDTFEATURETHRESHOLD) :
     """
     """
     logging.info ('begin gbdt_dimreduce_threshold')
