@@ -33,7 +33,7 @@ def pca_solver (data, K = PCACOMPONENT) :
     logging.info ('finished pca')
     return pca_data
 
-def pca (train_x,  train_y, validation_x, validation_y, test_x, feature_name) :
+def pca (train_x,  train_y, validation_x, validation_y, test_x, feature_name, gap_month = 1, type = 'unit') :
     """
     """
     if train_x.shape[0] != train_y.shape[0] or validation_x.shape[0] != validation_y.shape[0] :
@@ -52,27 +52,28 @@ def pca (train_x,  train_y, validation_x, validation_y, test_x, feature_name) :
     print new_feature_name
     return pca_data[:train_x.shape[0],:], pca_data[train_x.shape[0]:-test_x.shape[0]], pca_data[-test_x.shape[0]:], new_feature_name
 
-def gbdt_feature_importance (train, label) :
-    if os.path.exists (ROOT + '/data/feature_importance') :
-        logging.info ('feature_importance exists!')
-        feature_importance = pkl.grab (ROOT + '/data/feature_importance')
+def gbdt_feature_importance (train, label, gap_month = 1, type = 'unit') :
+    filepath = ROOT + '/data/feature_importance_%d_%s' % (gap_month, type)
+    if os.path.exists (filepath) :
+        logging.info (filepath + ' exists!')
+        feature_importance = pkl.grab (filepath)
     else :
         logging.info ('feature_importance start!')
         logging.info ('the size of data used to cal feature importance is (%d %d)' % train.shape)
         gb = GradientBoostingRegressor(n_estimators = 500 , learning_rate = 0.03 , max_depth = 3 , random_state = 1000000007, verbose = 1).fit (train, label)
         feature_importance = gb.feature_importances_
         feature_importance = 100.0 * (feature_importance / feature_importance.max ())
-        pkl.store (feature_importance, ROOT + '/data/feature_importance')
+        pkl.store (feature_importance, filepath)
     return feature_importance
 
-def gbdt_dimreduce_threshold (train_x, train_y, validation_x, validation_y, test_x,  feature_name, feature_threshold = GBDTFEATURETHRESHOLD) :
+def gbdt_dimreduce_threshold (train_x, train_y, validation_x, validation_y, test_x,  feature_name, feature_threshold = GBDTFEATURETHRESHOLD, gap_month = 1, type = 'unit') :
     """
     """
     logging.info ('begin gbdt_dimreduce_threshold')
     logging.info ('before gbdt dim-reducing : (%d %d)' % (train_x.shape))
     data = np.vstack([train_x, validation_x])
     label = np.hstack([train_y, validation_y])
-    feature_importance = gbdt_feature_importance (data, label)
+    feature_importance = gbdt_feature_importance (data, label, gap_month = gap_month, type = type)
     important_index = np.where (feature_importance > feature_threshold)[0]
     sorted_index = np.argsort (feature_importance[important_index])[::-1]
 
@@ -88,14 +89,14 @@ def gbdt_dimreduce_threshold (train_x, train_y, validation_x, validation_y, test
     print new_feature_name
     return new_train, new_validation, new_test, new_feature_name
 
-def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x, feature_name, feature_number = GBDTFEATURENUMBER) :
+def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x, feature_name, feature_number = GBDTFEATURENUMBER, gap_month = 1, type = 'unit') :
     """
     """
     logging.info ('begin gbdt_dimreduce_number')
     logging.info ('before gbdt dim-reducing : (%d %d)' % (train_x.shape))
     data = np.vstack([train_x, validation_x])
     label = np.hstack([train_y, validation_y])
-    feature_importance = gbdt_feature_importance (data, label)
+    feature_importance = gbdt_feature_importance (data, label, gap_month = gap_month, type = type)
     sorted_index = np.argsort (feature_importance)[::-1]
     sorted_index = sorted_index[:feature_number]
     
@@ -110,7 +111,7 @@ def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x,
     print new_feature_name
     return new_train, new_validation, new_test, new_feature_name
 
-def undo (train_x, train_y, validation_x, validation_y, test_x, feature_name) :
+def undo (train_x, train_y, validation_x, validation_y, test_x, feature_name, gap_month = 1, type = 'unit') :
     """
     nothing to do
     """
