@@ -93,7 +93,7 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y 
 
     return predict, gb.predict(test_x)
 
-def main (n_jobs, type) :
+def main (type) :
     """
     """
     #solver.main(gbdt_solver, 1, type, feature_reduction.gbdt_dimreduce_number)
