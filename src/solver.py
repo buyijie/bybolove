@@ -39,7 +39,7 @@ def main(solver, gap_month = 1, type = 'unit', dimreduce_func = feature_reductio
     validation_y = validation.label_plays.values
     test_x = testing.ix[:, columns].values
     # feature reduction
-    train_x, validation_x, test_x, columns = dimreduce_func(train_x, train_y, validation_x, validation_y, test_x, columns)
+    train_x, validation_x, test_x, columns = dimreduce_func(train_x, train_y, validation_x, validation_y, test_x, columns, gap_month = gap_month, type = type)
     predict_validation, predict_test = solver(train_x, train_y, validation_x, test_x, now_time, validation_y = validation_y, feature_names = columns, validation_artist_id=validation.artist_id.values.tolist(), validation_month=validation.month.values.astype(int).tolist(), validation_label_day=validation.label_day.values.astype(int).tolist())
     predict_validation = HandlePredict(predict_validation.tolist())
     predict_test = HandlePredict(predict_test.tolist())

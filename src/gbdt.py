@@ -33,7 +33,7 @@ def loss_function(label, predict) :
     """
     return sum((abs(label - predict) / label) ** 2) / len(label)
 
-def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y = np.array([]), feature_names = []):
+def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None) :
     """
     """
     logging.info('start training the gbdt model')
@@ -54,7 +54,8 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y 
     joblib.dump(gb, ROOT + '/result/' + now_time + '/model/gbdt.pkl')
     predict = gb.predict(validation_x)
 
-    if validation_y.shape[0]  :
+    # unable to use matplotlib if used multiprocessing
+    if validation_y.shape[0] and False :
         logging.info('the loss in Training set is %.4f' % loss_function(train_y, gb.predict(train_x)))
         logging.info('the loss in Validation set is %.4f' % loss_function(validation_y, gb.predict(validation_x)))
 
@@ -92,6 +93,21 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y 
 
     return predict, gb.predict(test_x)
 
+def main (n_jobs, type) :
+    """
+    """
+    #solver.main(gbdt_solver, 1, type, feature_reduction.gbdt_dimreduce_number)
+    #solver.main(gbdt_solver, 2, type, feature_reduction.gbdt_dimreduce_number)
+    processes = []
+    process1 = Process(target = solver.main, args = (gbdt_solver, 1, type, feature_reduction.undo))
+    process1.start()
+    processes.append(process1)
+    process2 = Process(target = solver.main, args = (gbdt_solver, 2, type, feature_reduction.undo))
+    process2.start()
+    processes.append(process2)
+    for process in processes:
+        process.join()
+    evaluate.mergeoutput()
 
 if __name__ == "__main__":
     try:
@@ -114,16 +130,4 @@ if __name__ == "__main__":
             usage()
             sys.exit(1)
 
-    solver.main(gbdt_solver, 1, type, feature_reduction.undo)
-    solver.main(gbdt_solver, 2, type, feature_reduction.undo)
-#    processes = []
-#    process1 = Process(target = solver.main, args = (gbdt_solver, 1, type, feature_reduction.undo))
-#    process1.start()
-#    processes.append(process1)
-#    time.sleep(10)
-#    process2 = Process(target = solver.main, args = (gbdt_solver, 2, type, feature_reduction.undo))
-#    process2.start()
-#    processes.append(process2)
-#    for process in processes:
-#        process.join()
-    evaluate.mergeoutput()
+    main(n_jobs, type)
