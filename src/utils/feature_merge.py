@@ -40,6 +40,7 @@ class FeatureMerge :
         self.type_ = type
         self.n_jobs_ = n_jobs
         self.month_name_ = pkl.grab(ROOT + '/data/month_name.pkl')
+        self.month_days_ = pkl.grab(ROOT + '/data/month_days.pkl')
         self.Read()
         self.GetData()
 
@@ -173,6 +174,7 @@ class FeatureMerge :
 
         # how many days in month_name 
         days = calendar.monthrange(int(month_name[:4]), int(month_name[4:]))[1]
+        #days = self.month_days_[month]
         # the weekday for 1st
         weekday_1st = StrToDate(month_name + '01').weekday()
 
@@ -198,14 +200,53 @@ class FeatureMerge :
 
         return data
 
-    def GetData(self, month_for_test = 2) :
+    def MergePlaysBetweenTwoMonth(self, x, y, x_days, y_days, month_name) :
         """
         """
-        feature_list = ['artist_id', 'Gender', 'Language', 'published_days', 'total_plays_for_one_song_all', 'total_plays_for_artist_all','is_collect', 'is_download', 'song_init_plays']
+        if x_days > y_days :
+            x = x[x.label_day <= y_days]
+        x_song = set(x.song_id.values.tolist())
+        y_song = set(y.song_id.values.tolist())
+        if x_days < y_days :
+            tmp = []
+            for song in x_song :
+                avg = x[x.song_id == song].last_month_plays.mean()
+                for day in xrange(x_days + 1 , y_days + 1) :
+                    tmp.append([song, day, avg])
+            tmp = pd.DataFrame(tmp, columns = x.columns)
+            x = pd.concat([x, tmp])
 
+        # x exist, y unexist
+        tmp = []
+        weekday_1st = StrToDate(month_name + '01').weekday()
+        for song in (x_song - y_song) :
+            for day in xrange(1, y_days + 1) :
+                # song_id, label_plays, label_day, label_weekday
+                tmp.append([song, 0, day, (weekday_1st + day - 1) % 7])
+        tmp = pd.DataFrame(tmp, columns = y.columns)
+        y = pd.concat([y, tmp])
+
+
+        # y exist, x unexist
+        tmp = []
+        for song in (y_song - x_song) :
+            for day in xrange(1, y_days + 1) :
+                tmp.append([song, day, 0])
+        tmp = pd.DataFrame(tmp, columns = x.columns)
+        x = pd.concat([x, tmp])
+
+        assert x.shape[0] == y.shape[0]
+        
+        data = pd.merge(x, y, how = 'inner', on = ['song_id', 'label_day']) 
+
+        return data
+
+    def GetDataForOneMonth(self, month) :
+        """
+        """        
+        feature_list = ['artist_id', 'Gender', 'Language', 'published_days', 'total_plays_for_one_song_all', 'total_plays_for_artist_all','is_collect', 'is_download', 'song_init_plays']
         #for idx in xrange(len(self.artist_list_)):
         #    feature_list.append('total_plays_for_every_artist_all_'+str(idx))
-
         for idx in xrange(len(self.artist_list_)) :
             feature_list.append('CovarianceBetweenSongAndArtist_%d_mul_total_plays_for_every_artist_all_%d' % (idx, idx))
         
@@ -252,11 +293,13 @@ class FeatureMerge :
             feature_list.append('total_plays_for_one_song_recent_%s_div_total_plays_for_artist_recent_%s' % (str(consecutive_days), str(consecutive_days)))
         label_list = ['label_plays', 'label_day', 'label_weekday']
 
-        self.final_data_ = None
-        first_month = True
-        cnt_month = []
-        # the data for training and validation
-        for month in  xrange(len(self.month_name_) - self.gap_month_) :
+        x_data = self.GetFromFile(month, 'label_day')
+        x_data['last_month_plays'] = self.GetFromFile(month, 'label_plays').label_plays
+
+        nxt_days = 0
+        # training or validation
+        if month + self.gap_month_ < len(self.month_name_) :
+            this_month = self.month_name_[month + self.gap_month_]
             first = True
             y_data = None
             for label in label_list :
@@ -264,31 +307,9 @@ class FeatureMerge :
                 if first : y_data = data
                 else : y_data[label] = data[label]
                 first = False
-
-            first = True
-            x_data = []
-            for feature in feature_list:
-                data = self.GetFromFile(month, feature)
-                if first : x_data = data
-                else : x_data[feature] = data[feature]
-                first = False
-
-            final_data = self.MergeData(x_data, y_data, self.month_name_[month + self.gap_month_])
-            final_data['month'] = self.month_name_[month + self.gap_month_]
-
-            # no data in 2015-08-31, we don't have exactly label in this day
-            if self.month_name_[month + self.gap_month_] == "201508" :
-                final_data = final_data[final_data.label_day.isin(['31', 31]) == False]
-
-            cnt_month.append(final_data.shape[0])
-            if first_month:
-                self.final_data_ = final_data
-            else :
-                self.final_data_ = pd.concat([self.final_data_, final_data])
-            first_month = False
-
-        # the data for testing
-        for month in  [-1] :
+            nxt_days = self.month_days_[month + self.gap_month_]
+        # testing
+        else :
             date = StrToDate(self.month_name_[month] + '01')
             new_month = date.month + self.gap_month_
             new_year = date.year
@@ -299,33 +320,53 @@ class FeatureMerge :
             date = date.replace(year=new_year, month=new_month, day=new_day)
             this_month = DateToStr(date)[:6]
 
-            first = True
-            x_data = []
-            for feature in feature_list:
-                data = self.GetFromFile(self.month_name_[month], feature)
-                if first : x_data = data
-                else : x_data[feature] = data[feature]
-                first = False
-            
-            days = calendar.monthrange(int(this_month[:4]), int(this_month[4:]))[1]
+            nxt_days = calendar.monthrange(int(this_month[:4]), int(this_month[4:]))[1]
             y_data = []
             for song in self.songs_list_ : 
-                for day in xrange(1, days + 1) :
+                for day in xrange(1, nxt_days + 1) :
                     y_data.append([song, 0, day, StrToDate(this_month + str(day)).weekday()])
 
             y_data = pd.DataFrame(y_data)
             y_data.columns = ['song_id', 'label_plays', 'label_day', 'label_weekday'] 
 
-            final_data = self.MergeData(x_data, y_data, this_month)
-            final_data['month'] = this_month
-            cnt_month.append(final_data.shape[0])
-            self.final_data_ = pd.concat([self.final_data_, final_data])
-
-        # replace the null value by zero
-        for label in label_list:
-            self.final_data_.loc[self.final_data_[label].isnull(), label] = 0
+        y_data = self.MergePlaysBetweenTwoMonth(x_data, y_data, self.month_days_[month], nxt_days, this_month)
+        first = True
+        x_data = None 
         for feature in feature_list:
-            self.final_data_.loc[self.final_data_[feature].isnull(), feature] = 0
+            data = self.GetFromFile(month, feature)
+            if first : x_data = data
+            else : x_data[feature] = data[feature]
+            first = False
+
+    
+        final_data = self.MergeData(x_data, y_data, this_month)
+        final_data['month'] = this_month
+        return final_data
+
+
+    def GetData(self) :
+        """
+        """
+        self.final_data_ = None
+        first_month = True
+        cnt_month = []
+
+        for month in xrange(len(self.month_name_) - self.gap_month_) :
+            final_data = self.GetDataForOneMonth(month)
+            cnt_month.append(final_data.shape[0])
+            if first_month:
+                self.final_data_ = final_data
+            else :
+                self.final_data_ = pd.concat([self.final_data_, final_data])
+            first_month = False
+
+        final_data = self.GetDataForOneMonth(len(self.month_name_) - 1)
+        cnt_month.append(final_data.shape[0])
+        self.final_data_ = pd.concat([self.final_data_, final_data])
+        
+        # replace the null value by zero
+        for column in self.final_data_.columns:
+            self.final_data_.loc[self.final_data_[column].isnull(), column] = 0
 
         logging.info('the final data size is (%d %d)' % self.final_data_.shape)
 

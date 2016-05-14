@@ -86,6 +86,7 @@ class FeatureExtract:
         self.data_ = self.data_.sort_values(['Ds'], ascending = True)
         self.month_data_ = []
         self.month_name_ = []
+        self.month_days_ = []
         st = 0
         month = self.data_.iloc[0,:].Ds[:6]
         block = max(1, int(math.sqrt(self.data_.shape[0] * 1.0)))
@@ -99,12 +100,15 @@ class FeatureExtract:
                 self.month_data_.append(self.data_[st:ed + 1])
                 self.month_data_[-1] = self.month_data_[-1].sort_values(['song_id', 'Ds'], ascending = True)
                 logging.info('for the month %s: from %d to %d, total %d' % (month, st, ed, ed - st + 1))
+                self.month_days_.append(len(set(self.month_data_[-1].Ds.values.tolist())))
                 st = ed + 1
                 month = self.data_.iloc[i,:].Ds[:6]
         self.month_name_.append(month)
         pkl.store(self.month_name_, ROOT + '/data/month_name.pkl')
         self.month_data_.append(self.data_[st:])
         self.month_data_[-1] = self.month_data_[-1].sort_values(['song_id', 'Ds'], ascending = True)
+        self.month_days_.append(len(set(self.month_data_[-1].Ds.values.tolist())))
+        pkl.store(self.month_days_, ROOT + '/data/month_days.pkl')
         logging.info('for the month %s: from %d to final, total %d' % (month, st, self.month_data_[-1].shape[0]))
 
     def GetSameSong(self, month, st) :
@@ -233,7 +237,8 @@ class FeatureExtract:
             if consecutive_days == None :
                 value = function(sub, condition_hour)
             else :
-                lastday = calendar.monthrange(int(self.month_name_[month][:4]), int(self.month_name_[month][4:]))[1]
+                # lastday = calendar.monthrange(int(self.month_name_[month][:4]), int(self.month_name_[month][4:]))[1]
+                lastday = self.month_days_[month]
                 begin_day = StrToDate(self.month_name_[month][:4] + str(lastday - consecutive_days + 1))
 
                 song_date_st = 0
@@ -264,7 +269,7 @@ class FeatureExtract:
             song_date_st = song_st 
             begin_day = StrToDate(self.month_name_[month] + '01')
             today = begin_day
-            while today.month == begin_day.month:
+            for day in xrange(self.month_days_[month]) :
                 if song_date_st < ed and DateToStr(today) == self.month_data_[month].iloc[song_date_st,:].Ds :
                     song_date_ed = self.GetSameSongDatePair(month, song_date_st)
                     value = function(month, today, self.month_data_[month].iloc[song_date_st:song_date_ed])
@@ -426,7 +431,8 @@ class FeatureExtract:
         """
         for_song = self.plays_for_song_in_each_day_[(self.plays_for_song_in_each_day_.song_id == song_id) & (self.plays_for_song_in_each_day_.month == int(self.month_name_[month]))]
         for_artist = self.plays_for_artist_in_each_day_[(self.plays_for_artist_in_each_day_.artist_id == artist_id) & (self.plays_for_artist_in_each_day_.month == int(self.month_name_[month]))]
-        days = calendar.monthrange(int(self.month_name_[month][:4]), int(self.month_name_[month][4:]))[1]
+        # days = calendar.monthrange(int(self.month_name_[month][:4]), int(self.month_name_[month][4:]))[1]
+        days = self.month_days_[month]
         songs = []
         artists = []
         for day in xrange(1, days + 1) :
