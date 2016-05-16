@@ -13,6 +13,7 @@ from multiprocessing import Process
 import sys
 import getopt
 import solver
+from solver import HandlePredict
 
 sys.path.insert(0, '..')
 from configure import *
@@ -38,20 +39,47 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y 
     """
     logging.info('start training the gbdt model')
     params = {
-        'n_estimators': 10,
+        'n_estimators': 0,
         'learning_rate': 0.03,
         'random_state': 1000000007,
         'max_depth': 3,
-        'verbose' : 2
+        'verbose' : 2,
+        'warm_start': True
     }
 
     with open(ROOT + '/result/' + now_time + '/parameters.param', 'w') as out :
         for key, val in params.items():
             out.write(str(key) + ': ' + str(val) + '\n')
 
+    max_num_round = 700 
+    batch = 10
+    best_val = -1e60
+    history_validation_val = []
+    best_num_round = -1
+    curr_round = 0
+
+    assert max_num_round % batch == 0
     gb = GradientBoostingRegressor(**params)
-    gb.fit(train_x, train_y, 1.0 / train_y ** 2)
-    joblib.dump(gb, ROOT + '/result/' + now_time + '/model/gbdt.pkl')
+    for step in xrange(max_num_round / batch) :
+        train_x = train_x.copy(order='C')
+        train_y = train_y.copy(order='C')
+        gb.n_estimators += batch
+        logging.info('current round is: %d' % curr_round)
+        #gb.set_params(**params)
+        gb.fit(train_x, train_y)
+        curr_round += batch
+        predict = gb.predict(validation_x)
+        predict = HandlePredict(predict.tolist())
+        curr_val = evaluate.evaluate(predict, validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
+        history_validation_val.append(curr_val)
+        logging.info('the current score is %.10f' % curr_val)
+        if curr_round >= 150 and curr_val > best_val:
+            best_num_round = curr_round
+            best_val = curr_val
+            joblib.dump(gb, ROOT + '/result/' + now_time + '/model/gbdt.pkl')
+
+    logging.info('the best round is %d, the score is %.10f' % (best_num_round, best_val))
+    gb = joblib.load(ROOT + '/result/' + now_time + '/model/gbdt.pkl')
     predict = gb.predict(validation_x)
 
     # unable to use matplotlib if used multiprocessing
@@ -96,8 +124,9 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y 
 def main (type) :
     """
     """
-    #solver.main(gbdt_solver, 1, type, feature_reduction.gbdt_dimreduce_number)
-    #solver.main(gbdt_solver, 2, type, feature_reduction.gbdt_dimreduce_number)
+    solver.main(gbdt_solver, 1, type, feature_reduction.undo)
+    solver.main(gbdt_solver, 2, type, feature_reduction.undo)
+    return 
     processes = []
     process1 = Process(target = solver.main, args = (gbdt_solver, 1, type, feature_reduction.undo))
     process1.start()
@@ -130,4 +159,4 @@ if __name__ == "__main__":
             usage()
             sys.exit(1)
 
-    main(n_jobs, type)
+    main(type)
