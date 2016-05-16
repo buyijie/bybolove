@@ -14,6 +14,7 @@ def HandlePredict(predict) :
     """
     # FLOOR value
     # negative -> zero
+# max(1, int(v))????
     predict = map(lambda v : max(0, int(v)), predict)
     return predict
 
@@ -26,6 +27,9 @@ def main(solver, gap_month = 1, type = 'unit', dimreduce_func = feature_reductio
     os.system('mkdir ' + ROOT + '/result/' + now_time + '/model')
 
     training, validation, testing = data_handler.GetData(gap_month = gap_month, type = type)
+    training.last_month_plays += 1
+    validation.last_month_plays += 1
+    testing.last_month_plays += 1
     training.label_plays += 1
     validation.label_plays += 1
     columns = training.columns.tolist()

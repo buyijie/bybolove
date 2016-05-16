@@ -28,13 +28,59 @@ def usage() :
     print '-h, --help: print help message'
     print '-t, --type: the type of data need to handler, default = unit'
 
-def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None):
+def Ratio2Plays(ratio, last_month_plays):
+    return (ratio+1.0)*last_month_plays
+
+def Plays2Ratio(plays, last_month_plays):
+    return (plays-last_month_plays)*1.0/last_month_plays
+
+def Transform(y, transform_type, last_month_plays=None):
+    if transform_type==0:
+        return y
+    elif transform_type==1:
+        assert last_month_plays is not None, "must provide last_month_plays for transform plays to ratio"
+        return Plays2Ratio(y, last_month_plays)
+    elif transform_type==2:
+        return np.log(y)
+
+    logging.info("transform_type {} is not defined".transform_type)
+    sys.exit(1)
+
+def Convert2Plays(predict, transform_type, last_month_plays=None):
+    if transform_type==0:
+        return predict
+    elif transform_type==1:
+        assert last_month_plays is not None, "must provide last_month_plays for converting ratio to plays"
+        return Ratio2Plays(predict, last_month_plays)
+    elif transform_type==2:
+        return np.exp(predict)
+
+    logging.info("transform_type {} is not defined".transform_type)
+    sys.exit(1)
+        
+
+def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0):
     """
+    transform_type: 0: no transform, 1: ratiolize predict, 2: loglize predict
     """
+    col_last_month_plays=None
+    for i in xrange(len(feature_names)):
+        if feature_names[i]=='last_month_plays':
+            col_last_month_plays=i
+    assert col_last_month_plays is not None, 'No feature last_month_plays found!'
+
+    train_last_month_plays=train_x[:, col_last_month_plays]
+    validation_last_month_plays=validation_x[:, col_last_month_plays]
+    test_last_month_plays=test_x[:, col_last_month_plays]
+
     
-    dtrain=xgb.DMatrix(train_x,label=train_y,feature_names=feature_names)
-    dvalidation=xgb.DMatrix(validation_x,validation_y,feature_names=feature_names)
-    dtest=xgb.DMatrix(test_x,feature_names=feature_names)
+    train_y_ratio=(train_y-train_last_month_plays)*1.0/train_last_month_plays
+    validation_y_ratio=(validation_y-validation_last_month_plays)*1.0/validation_last_month_plays
+
+#Transform predict
+    dtrain=xgb.DMatrix(train_x, label=Transform(train_y, transform_type, train_last_month_plays), feature_names=feature_names)
+    dvalidation=xgb.DMatrix(validation_x, Transform(validation_y, transform_type, validation_last_month_plays), feature_names=feature_names)
+    dtest=xgb.DMatrix(test_x, feature_names=feature_names)
 
     logging.info('start training the xgboost model')
     params = {
@@ -47,7 +93,7 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation
 
     watchlist=[(dtrain,'train'),(dvalidation,'validation')]
 
-    max_num_round=750
+    max_num_round=1000
     best_num_round=0
     best_val=float('-Inf')
     curr_round=0
@@ -65,6 +111,8 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation
         curr_round+=10
         logging.info('current round is: %d' % curr_round)
         predict=bst.predict(dvalidation)
+#detransform to plays
+        predict=Convert2Plays(predict, transform_type, validation_last_month_plays)
         predict=HandlePredict(predict.tolist())
         curr_val=evaluate.evaluate(predict, validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
         history_validation_val.append(curr_val)
@@ -79,6 +127,8 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation
 
     bst=xgb.Booster(model_file=ROOT+'/result/'+now_time+'/model/xgboost.model')
     predict = bst.predict(dvalidation)
+#detransform to plays
+    predict=Convert2Plays(predict, transform_type, validation_last_month_plays)
 
     with open(ROOT + '/result/' + now_time + '/parameters.param', 'w') as out :
         for key, val in params.items():
@@ -87,8 +137,8 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation
         out.write('best_num_round: '+str(best_num_round)+'\n')
 
     if validation_y.shape[0]  :
-        logging.info('the loss in Training set is %.4f' % mean_squared_error(train_y, bst.predict(dtrain)))
-        logging.info('the loss in Validation_set is %.4f' % mean_squared_error(validation_y, bst.predict(dvalidation)))
+        logging.info('the loss in Training set is %.4f' % mean_squared_error(train_y, Convert2Plays(bst.predict(dtrain), transform_type, train_last_month_plays)))
+        logging.info('the loss in Validation_set is %.4f' % mean_squared_error(validation_y, Convert2Plays(bst.predict(dvalidation), transform_type, validation_last_month_plays)))
 
         plt.figure(figsize=(12, 6))
         # Plot feature importance
@@ -122,13 +172,14 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation
 
         plt.savefig(ROOT + '/result/' + now_time + '/statistics.jpg')
 
-        print "not zero prediction : %d " % sum( [ i!=0 for i in predict.astype(int).tolist()] )
+        print "not zero prediction : %d " % sum( [ i!=0 for i in Convert2Plays(predict, transform_type, validation_last_month_plays).astype(int).tolist()] )
         print "total number of train data : %d" % train_y.shape[0]
         print "not zero label train data : %d" % sum(train_y!=0)
         print "total number of validation data : %d" % validation_y.shape[0]
         print "not zero label validation data : %d" % sum(validation_y!=0)
+        print "best_num_round : %d" % best_num_round
 
-    return predict, bst.predict(dtest)
+    return predict, Convert2Plays(bst.predict(dtest), transform_type, test_last_month_plays)
 
 if __name__ == "__main__":
     try:
@@ -139,18 +190,18 @@ if __name__ == "__main__":
         sys.exit(2)
 
     n_jobs = 1
-    type = 'unit'
+    _type = 'unit'
     for o, a in opts:
         if o in ('-h', '--help') :
             usage()
             sys.exit(1)
         elif o in ('-t', '--type') :
-            type = a
+            _type = a
         else:
             print 'invalid parameter:', o
             usage()
             sys.exit(1)
 
-    solver.main(xgboost_solver, type = type, dimreduce_func = feature_reduction.undo) 
-    solver.main(xgboost_solver, gap_month=2, type=type, dimreduce_func = feature_reduction.undo)
+    solver.main(xgboost_solver, type = _type, dimreduce_func = feature_reduction.undo) 
+    solver.main(xgboost_solver, gap_month=2, type=_type, dimreduce_func = feature_reduction.undo)
     evaluate.mergeoutput()
