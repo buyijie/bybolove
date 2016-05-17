@@ -36,9 +36,6 @@ def pca_solver (data, K = PCACOMPONENT) :
 def pca (train_x,  train_y, validation_x, validation_y, test_x, feature_name, gap_month = 1, type = 'unit') :
     """
     """
-    if train_x.shape[0] != train_y.shape[0] or validation_x.shape[0] != validation_y.shape[0] :
-        logging.error('the size of data set is mismatch')
-        exit(-1)
     if train_x.shape[1] != validation_x.shape[1] :
         logging.error('the number of feature in different data set is mismatch')
         exit(-1)
@@ -69,6 +66,12 @@ def gbdt_feature_importance (train, label, gap_month = 1, type = 'unit') :
 def gbdt_dimreduce_threshold (train_x, train_y, validation_x, validation_y, test_x,  feature_name, feature_threshold = GBDTFEATURETHRESHOLD, gap_month = 1, type = 'unit') :
     """
     """
+    if train_x.shape[0] != train_y.shape[0] or validation_x.shape[0] != validation_y.shape[0] :
+        logging.error('the size of data set is mismatch')
+        exit(-1)
+    if train_x.shape[1] != validation_x.shape[1] :
+        logging.error('the number of feature in different data set is mismatch')
+        exit(-1)
     logging.info ('begin gbdt_dimreduce_threshold')
     logging.info ('before gbdt dim-reducing : (%d %d)' % (train_x.shape))
     data = np.vstack([train_x, validation_x])
@@ -92,6 +95,12 @@ def gbdt_dimreduce_threshold (train_x, train_y, validation_x, validation_y, test
 def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x, feature_name, feature_number = GBDTFEATURENUMBER, gap_month = 1, type = 'unit') :
     """
     """
+    if train_x.shape[0] != train_y.shape[0] or validation_x.shape[0] != validation_y.shape[0] :
+        logging.error('the size of data set is mismatch')
+        exit(-1)
+    if train_x.shape[1] != validation_x.shape[1] :
+        logging.error('the number of feature in different data set is mismatch')
+        exit(-1)
     logging.info ('begin gbdt_dimreduce_number')
     logging.info ('before gbdt dim-reducing : (%d %d)' % (train_x.shape))
     data = np.vstack([train_x, validation_x])
@@ -109,6 +118,39 @@ def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x,
     print feature_name
     logging.info('the new feature is :')
     print new_feature_name
+
+def mix_pca_gbdt (train_x, train_y, validation_x, validation_y, test_x, feature_name, feature_number = GBDTFEATURENUMBER, gap_month = 1, type = 'unit') :
+    """
+    """
+    if train_x.shape[0] != train_y.shape[0] or validation_x.shape[0] != validation_y.shape[0] :
+        logging.error('the size of data set is mismatch')
+        exit(-1)
+    if train_x.shape[1] != validation_x.shape[1] :
+        logging.error('the number of feature in different data set is mismatch')
+        exit(-1)
+    logging.info ('before mix_pca_gbdt dim-reducing : (%d %d)' % (train_x.shape))
+    data = np.vstack([train_x, validation_x])
+    label = np.hstack([train_y, validation_y])
+    feature_importance = gbdt_feature_importance (data, label, gap_month = gap_month, type = type)
+    sorted_index = np.argsort (feature_importance)[::-1]
+
+    new_train_gbdt = train_x[:,sorted_index[:feature_number]]
+    new_validation_gbdt = validation_x[:,sorted_index[:feature_number]]
+    new_test_gbdt = test_x[:,sorted_index[:feature_number]]
+    new_feature_name_gbdt = [feature_name[i] for i in sorted_index[:feature_number]]
+
+    new_train_pca, new_validation_pca, new_test_pca, new_feature_name_pca = pca(train_x[:,feature_number:feature_number + REMAININGFORPCA], None,
+                                                                                validation_x[:,feature_number:feature_number + REMAININGFORPCA], None,
+                                                                                test_x[:,feature_number:feature_number + REMAININGFORPCA], 
+                                                                                feature_name = None, gap_month = gap_month, type = type
+                                                                               )
+    
+    new_train = np.hstack([new_train_gbdt, new_train_pca]) 
+    new_validation = np.hstack([new_validation_gbdt, new_validation_pca])
+    new_test = np.hstack([new_test_gbdt, new_test_pca])
+    new_feature_name = new_feature_name_gbdt; new_feature_name.extend(new_feature_name_pca)
+
+    logging.info ('after mix_pca_gbdt dim-reducing : (%d %d)' % (new_train.shape))
     return new_train, new_validation, new_test, new_feature_name
 
 def undo (train_x, train_y, validation_x, validation_y, test_x, feature_name, gap_month = 1, type = 'unit') :

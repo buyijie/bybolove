@@ -61,6 +61,6 @@ def run(solver, type = 'unit') :
     now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H%M%S')
     filepath = ROOT + '/result/' + now_time
     os.system('mkdir ' + filepath)
-    main(solver, filepath=filepath + "/1",  gap_month=1, type=type, dimreduce_func = feature_reduction.undo, transform_type=0) 
+    main(solver, filepath=filepath + "/1", gap_month=1, type=type, dimreduce_func = feature_reduction.undo, transform_type=0) 
     main(solver, filepath=filepath + "/2", gap_month=2, type=type, dimreduce_func = feature_reduction.undo, transform_type=0)
     evaluate.mergeoutput(filepath)
