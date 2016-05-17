@@ -18,7 +18,7 @@ def HandlePredict(predict) :
     predict = map(lambda v : max(0, int(v)), predict)
     return predict
 
-def main(solver, gap_month = 1, type = 'unit', dimreduce_func = feature_reduction.undo) :
+def main(solver, gap_month = 1, type = 'unit', dimreduce_func = feature_reduction.undo, since_when=201503, transform_type=0) :
     """
     """
     now_time = datetime.datetime.now()
@@ -37,14 +37,17 @@ def main(solver, gap_month = 1, type = 'unit', dimreduce_func = feature_reductio
     columns.remove('song_id')
     columns.remove('artist_id')
     columns.remove('label_plays')
-    train_x = training.ix[:, columns].values
-    train_y = training.label_plays.values
+#use data after month since_when to train model
+    rows_train=training.month.values>since_when
+
+    train_x = training.ix[rows_train, columns].values
+    train_y = training.ix[rows_train, :].label_plays.values
     validation_x = validation.ix[:,columns].values
     validation_y = validation.label_plays.values
     test_x = testing.ix[:, columns].values
     # feature reduction
     train_x, validation_x, test_x, columns = dimreduce_func(train_x, train_y, validation_x, validation_y, test_x, columns, gap_month = gap_month, type = type)
-    predict_validation, predict_test = solver(train_x, train_y, validation_x, test_x, now_time, validation_y = validation_y, feature_names = columns, validation_artist_id=validation.artist_id.values.tolist(), validation_month=validation.month.values.astype(int).tolist(), validation_label_day=validation.label_day.values.astype(int).tolist())
+    predict_validation, predict_test = solver(train_x, train_y, validation_x, test_x, now_time, validation_y = validation_y, feature_names = columns, validation_artist_id=validation.artist_id.values.tolist(), validation_month=validation.month.values.astype(int).tolist(), validation_label_day=validation.label_day.values.astype(int).tolist(), transform_type=transform_type)
     predict_validation = HandlePredict(predict_validation.tolist())
     predict_test = HandlePredict(predict_test.tolist())
     score = evaluate.evaluate(predict_validation, validation_y.tolist(), validation.artist_id.values.tolist(), validation.month.values.astype(int).tolist(), validation.label_day.values.astype(int).tolist())

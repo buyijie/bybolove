@@ -9,6 +9,7 @@ import logging.config
 from sklearn.externals import joblib
 from sklearn.metrics import mean_squared_error
 from utils import feature_reduction, evaluate
+from utils.feature_handler import *
 import sys
 import getopt
 import solver
@@ -27,37 +28,6 @@ def usage() :
     print 'xgboost.py usage:'
     print '-h, --help: print help message'
     print '-t, --type: the type of data need to handler, default = unit'
-
-def Ratio2Plays(ratio, last_month_plays):
-    return (ratio+1.0)*last_month_plays
-
-def Plays2Ratio(plays, last_month_plays):
-    return (plays-last_month_plays)*1.0/last_month_plays
-
-def Transform(y, transform_type, last_month_plays=None):
-    if transform_type==0:
-        return y
-    elif transform_type==1:
-        assert last_month_plays is not None, "must provide last_month_plays for transform plays to ratio"
-        return Plays2Ratio(y, last_month_plays)
-    elif transform_type==2:
-        return np.log(y)
-
-    logging.info("transform_type {} is not defined".transform_type)
-    sys.exit(1)
-
-def Convert2Plays(predict, transform_type, last_month_plays=None):
-    if transform_type==0:
-        return predict
-    elif transform_type==1:
-        assert last_month_plays is not None, "must provide last_month_plays for converting ratio to plays"
-        return Ratio2Plays(predict, last_month_plays)
-    elif transform_type==2:
-        return np.exp(predict)
-
-    logging.info("transform_type {} is not defined".transform_type)
-    sys.exit(1)
-        
 
 def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0):
     """
@@ -135,6 +105,7 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation
             out.write(str(key) + ': ' + str(val) + '\n')
         out.write('max_num_round: '+str(max_num_round)+'\n')
         out.write('best_num_round: '+str(best_num_round)+'\n')
+        out.write('transform_type: '+str(transform_type)+'\n')
 
     if validation_y.shape[0]  :
         logging.info('the loss in Training set is %.4f' % mean_squared_error(train_y, Convert2Plays(bst.predict(dtrain), transform_type, train_last_month_plays)))
@@ -202,6 +173,6 @@ if __name__ == "__main__":
             usage()
             sys.exit(1)
 
-    solver.main(xgboost_solver, type = _type, dimreduce_func = feature_reduction.undo) 
-    solver.main(xgboost_solver, gap_month=2, type=_type, dimreduce_func = feature_reduction.undo)
+    solver.main(xgboost_solver, type = _type, dimreduce_func = feature_reduction.undo, transform_type=0) 
+    solver.main(xgboost_solver, gap_month=2, type=_type, dimreduce_func = feature_reduction.undo, transform_type=2)
     evaluate.mergeoutput()

@@ -54,6 +54,10 @@ def evaluate(predict, label, artist, month, day) :
 def output(name, predict, artist, month, day) :
     """
     """
+# no 10.31
+    illegal_month=201510
+    illegal_day=31
+
     artist_day_predict = {}
     for row in xrange(len(predict)) :
         artist_day = artist[row] + '#' + str(month[row]) + '#' + str(day[row])
@@ -65,7 +69,9 @@ def output(name, predict, artist, month, day) :
     with open(name, 'w') as out :
         for key, value in artist_day_predict.items() :
             artist, month, day = key.split('#')
-            out.write('%s,%s%02d,%d\n' % (artist, month, int(day), value))
+            if (int(month)==illegal_month) and (int(day)==illegal_day):
+                continue
+            out.write('%s,%d,%s%02d\n' % (artist, value, month, int(day)))
 
 def mergeoutput() :
     """
