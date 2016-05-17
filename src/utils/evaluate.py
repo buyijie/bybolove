@@ -54,7 +54,7 @@ def evaluate(predict, label, artist, month, day) :
 def output(name, predict, artist, month, day) :
     """
     """
-# no 10.31
+    # no 10.31
     illegal_month=201510
     illegal_day=31
 
@@ -73,13 +73,11 @@ def output(name, predict, artist, month, day) :
                 continue
             out.write('%s,%d,%s%02d\n' % (artist, value, month, int(day)))
 
-def mergeoutput() :
+def mergeoutput(filepath) :
     """
     """
-    now_time = datetime.datetime.now()
-    now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H%M%S')
-    os.system("cat " + ROOT + '/predict_1' + " >> " + ROOT + '/result/mars_tianchi_artist_plays_predict_' + now_time + '.csv')
-    os.system("cat " + ROOT + '/predict_2' + " >> " + ROOT + '/result/mars_tianchi_artist_plays_predict_' + now_time + '.csv')
+    os.system("cat " + ROOT + '/predict_1' + " >> " + filepath + '/mars_tianchi_artist_plays_predict.csv')
+    os.system("cat " + ROOT + '/predict_2' + " >> " + filepath + '/mars_tianchi_artist_plays_predict.csv')
     os.system("rm " + ROOT + '/predict_1')
     os.system("rm " + ROOT + '/predict_2')
     

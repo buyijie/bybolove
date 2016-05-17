@@ -29,7 +29,7 @@ def usage() :
     print '-h, --help: print help message'
     print '-t, --type: the type of data need to handler, default = unit'
 
-def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0):
+def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0):
     """
     transform_type: 0: no transform, 1: ratiolize predict, 2: loglize predict
     """
@@ -92,15 +92,15 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation
         if curr_val > best_val:
             best_num_round=curr_round
             best_val=curr_val
-            bst.save_model(ROOT+'/result/'+now_time+'/model/xgboost.model')
+            bst.save_model(filepath +'/model/xgboost.model')
 
 
-    bst=xgb.Booster(model_file=ROOT+'/result/'+now_time+'/model/xgboost.model')
+    bst=xgb.Booster(model_file=filepath +'/model/xgboost.model')
     predict = bst.predict(dvalidation)
 #detransform to plays
     predict=Convert2Plays(predict, transform_type, validation_last_month_plays)
 
-    with open(ROOT + '/result/' + now_time + '/parameters.param', 'w') as out :
+    with open(filepath + '/parameters.param', 'w') as out :
         for key, val in params.items():
             out.write(str(key) + ': ' + str(val) + '\n')
         out.write('max_num_round: '+str(max_num_round)+'\n')
@@ -141,7 +141,7 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, now_time , validation
         plt.xlabel('Boosting Iterations')
         plt.ylabel('Deviance')
 
-        plt.savefig(ROOT + '/result/' + now_time + '/statistics.jpg')
+        plt.savefig(filepath + '/statistics.jpg')
 
         print "not zero prediction : %d " % sum( [ i!=0 for i in Convert2Plays(predict, transform_type, validation_last_month_plays).astype(int).tolist()] )
         print "total number of train data : %d" % train_y.shape[0]
@@ -172,7 +172,8 @@ if __name__ == "__main__":
             print 'invalid parameter:', o
             usage()
             sys.exit(1)
-
-    solver.main(xgboost_solver, type = _type, dimreduce_func = feature_reduction.undo, transform_type=0) 
-    solver.main(xgboost_solver, gap_month=2, type=_type, dimreduce_func = feature_reduction.undo, transform_type=2)
-    evaluate.mergeoutput()
+    
+    solver.run(xgboost_solver)
+    #solver.main(xgboost_solver, type = _type, dimreduce_func = feature_reduction.undo, transform_type=0) 
+    #solver.main(xgboost_solver, gap_month=2, type=_type, dimreduce_func = feature_reduction.undo, transform_type=2)
+    #evaluate.mergeoutput()

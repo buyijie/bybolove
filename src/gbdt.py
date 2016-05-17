@@ -9,6 +9,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 import logging.config
 from sklearn.externals import joblib
 from utils import feature_reduction, evaluate
+from utils.feature_handler import *
 from multiprocessing import Process
 import sys
 import getopt
@@ -34,10 +35,34 @@ def loss_function(label, predict) :
     """
     return sum((abs(label - predict) / label) ** 2) / len(label)
 
-def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None) :
+def gbdt_solver(train_x, train_y, validation_x, test_x, filepath, validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0) :
     """
     """
     logging.info('start training the gbdt model')
+
+    col_last_month_plays=None
+    for i in xrange(len(feature_names)):
+        if feature_names[i]=='last_month_plays':
+            col_last_month_plays=i
+    assert col_last_month_plays is not None, 'No feature last_month_plays found!'
+
+    train_last_month_plays=train_x[:, col_last_month_plays]
+    validation_last_month_plays=validation_x[:, col_last_month_plays]
+    test_last_month_plays=test_x[:, col_last_month_plays]
+
+    
+    train_y_ratio=(train_y-train_last_month_plays)*1.0/train_last_month_plays
+    validation_y_ratio=(validation_y-validation_last_month_plays)*1.0/validation_last_month_plays
+
+    #Transform predict
+
+    tmp_train_y = train_y
+    tmp_validation_y = validation_y
+
+    train_y = Transform(train_y, transform_type, train_last_month_plays)
+    validation_y = Transform(validation_y, transform_type, validation_last_month_plays)
+
+ 
     params = {
         'n_estimators': 0,
         'learning_rate': 0.03,
@@ -47,11 +72,8 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y 
         'warm_start': True
     }
 
-    with open(ROOT + '/result/' + now_time + '/parameters.param', 'w') as out :
-        for key, val in params.items():
-            out.write(str(key) + ': ' + str(val) + '\n')
 
-    max_num_round = 700 
+    max_num_round = 500 
     batch = 10
     best_val = -1e60
     history_validation_val = []
@@ -69,18 +91,29 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y 
         gb.fit(train_x, train_y)
         curr_round += batch
         predict = gb.predict(validation_x)
+        #detransform to plays
+        predict=Convert2Plays(predict, transform_type, validation_last_month_plays)
         predict = HandlePredict(predict.tolist())
-        curr_val = evaluate.evaluate(predict, validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
+        curr_val = evaluate.evaluate(predict, tmp_validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
         history_validation_val.append(curr_val)
         logging.info('the current score is %.10f' % curr_val)
-        if curr_round >= 150 and curr_val > best_val:
+        if curr_round >= 100 and curr_val > best_val:
             best_num_round = curr_round
             best_val = curr_val
-            joblib.dump(gb, ROOT + '/result/' + now_time + '/model/gbdt.pkl')
+            joblib.dump(gb, filepath + '/model/gbdt.pkl')
 
     logging.info('the best round is %d, the score is %.10f' % (best_num_round, best_val))
-    gb = joblib.load(ROOT + '/result/' + now_time + '/model/gbdt.pkl')
+    gb = joblib.load(filepath + '/model/gbdt.pkl')
     predict = gb.predict(validation_x)
+    #detransform to plays
+    predict=Convert2Plays(predict, transform_type, validation_last_month_plays)
+
+    with open(filepath + '/parameters.param', 'w') as out :
+        for key, val in params.items():
+            out.write(str(key) + ': ' + str(val) + '\n')
+            out.write('max_num_round: '+str(max_num_round)+'\n')
+            out.write('best_num_round: '+str(best_num_round)+'\n')
+            out.write('transform_type: '+str(transform_type)+'\n')
 
     # unable to use matplotlib if used multiprocessing
     if validation_y.shape[0] and False :
@@ -117,9 +150,9 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, now_time , validation_y 
         plt.xlabel('Boosting Iterations')
         plt.ylabel('Deviance')
 
-        plt.savefig(ROOT + '/result/' + now_time + '/statistics.jpg')
+        plt.savefig(filepath + '/statistics.jpg')
 
-    return predict, gb.predict(test_x)
+    return predict, Transform(gb.predict(test_x), transform_type, test_last_month_plays)
 
 def main (type) :
     """
@@ -159,4 +192,5 @@ if __name__ == "__main__":
             usage()
             sys.exit(1)
 
-    main(type)
+    solver.run(gbdt_solver, type = type)
+    # main(type)
