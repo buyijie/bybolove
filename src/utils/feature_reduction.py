@@ -118,6 +118,7 @@ def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x,
     print feature_name
     logging.info('the new feature is :')
     print new_feature_name
+    return new_train, new_validation, new_test, new_feature_name
 
 def mix_pca_gbdt (train_x, train_y, validation_x, validation_y, test_x, feature_name, feature_number = GBDTFEATURENUMBER, gap_month = 1, type = 'unit') :
     """
