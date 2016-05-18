@@ -29,10 +29,13 @@ def usage() :
     print '-h, --help: print help message'
     print '-t, --type: the type of data need to handler, default = unit'
 
-def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0):
+def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0, shuffle=0):
     """
     transform_type: 0: no transform, 1: ratiolize predict, 2: loglize predict
+    shuffle: every shuffle number, shuffle the train data
     """
+    logging.info(train_x.shape)
+
     col_last_month_plays=None
     for i in xrange(len(feature_names)):
         if feature_names[i]=='last_month_plays':
@@ -42,10 +45,6 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
     train_last_month_plays=train_x[:, col_last_month_plays]
     validation_last_month_plays=validation_x[:, col_last_month_plays]
     test_last_month_plays=test_x[:, col_last_month_plays]
-
-    
-    train_y_ratio=(train_y-train_last_month_plays)*1.0/train_last_month_plays
-    validation_y_ratio=(validation_y-validation_last_month_plays)*1.0/validation_last_month_plays
 
 #Transform predict
     dtrain=xgb.DMatrix(train_x, label=Transform(train_y, transform_type, train_last_month_plays), feature_names=feature_names)
@@ -63,7 +62,7 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
 
     watchlist=[(dtrain,'train'),(dvalidation,'validation')]
 
-    max_num_round=1000
+    max_num_round=500
     best_num_round=0
     best_val=float('-Inf')
     curr_round=0
@@ -78,7 +77,7 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
     bst=None
     for step in xrange(max_num_round/interval):
         bst=xgb.train(params,dtrain,interval,watchlist,evals_result=evals_result,xgb_model=bst)
-        curr_round+=10
+        curr_round+=interval
         logging.info('current round is: %d' % curr_round)
         predict=bst.predict(dvalidation)
 #detransform to plays
@@ -93,8 +92,13 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
             best_num_round=curr_round
             best_val=curr_val
             bst.save_model(filepath +'/model/xgboost.model')
+        #shuffle train_x train_y last_month_plays
+        if (shuffle>0) and (curr_round%shuffle==0):
+            indices=np.random.permutation(train_x.shape[0])
+            dtrain=xgb.DMatrix(train_x[indices,:], label=Transform(train_y[indices], transform_type, train_last_month_plays[indices]), feature_names=feature_names)
+            logging.info('shuffle')
 
-
+    dtrain=xgb.DMatrix(train_x, label=Transform(train_y, transform_type, train_last_month_plays), feature_names=feature_names)
     bst=xgb.Booster(model_file=filepath +'/model/xgboost.model')
     predict = bst.predict(dvalidation)
 #detransform to plays
@@ -173,7 +177,7 @@ if __name__ == "__main__":
             usage()
             sys.exit(1)
     
-    solver.run(xgboost_solver)
+    solver.run(xgboost_solver, type=_type)
     #solver.main(xgboost_solver, type = _type, dimreduce_func = feature_reduction.undo, transform_type=0) 
     #solver.main(xgboost_solver, gap_month=2, type=_type, dimreduce_func = feature_reduction.undo, transform_type=2)
     #evaluate.mergeoutput()

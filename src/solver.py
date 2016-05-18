@@ -25,6 +25,29 @@ def main(solver, filepath,  gap_month = 1, type = 'unit', dimreduce_func = featu
     os.system('mkdir ' + filepath + '/model')
 
     training, validation, testing = data_handler.GetData(gap_month = gap_month, type = type)
+
+#Add numerical artist_id and song_id as feature
+    training['artist_id_category']=training['artist_id'].astype('category')
+    training['artist_id_numeric']=training['artist_id_category'].cat.codes
+    training.drop('artist_id_category', axis=1, inplace=True)
+    training['song_id_category']=training['song_id'].astype('category')
+    training['song_id_numeric']=training['song_id_category'].cat.codes
+    training.drop('song_id_category', axis=1, inplace=True)
+
+    validation['artist_id_category']=validation['artist_id'].astype('category')
+    validation['artist_id_numeric']=validation['artist_id_category'].cat.codes
+    validation.drop('artist_id_category', axis=1, inplace=True)
+    validation['song_id_category']=validation['song_id'].astype('category')
+    validation['song_id_numeric']=validation['song_id_category'].cat.codes
+    validation.drop('song_id_category', axis=1, inplace=True)
+
+    testing['artist_id_category']=testing['artist_id'].astype('category')
+    testing['artist_id_numeric']=testing['artist_id_category'].cat.codes
+    testing.drop('artist_id_category', axis=1, inplace=True)
+    testing['song_id_category']=testing['song_id'].astype('category')
+    testing['song_id_numeric']=testing['song_id_category'].cat.codes
+    testing.drop('song_id_category', axis=1, inplace=True)
+
     training.last_month_plays += 1
     validation.last_month_plays += 1
     testing.last_month_plays += 1
@@ -62,5 +85,5 @@ def run(solver, type = 'unit') :
     filepath = ROOT + '/result/' + now_time
     os.system('mkdir ' + filepath)
     main(solver, filepath=filepath + "/1", gap_month=1, type=type, dimreduce_func = feature_reduction.undo, transform_type=0) 
-    main(solver, filepath=filepath + "/2", gap_month=2, type=type, dimreduce_func = feature_reduction.undo, transform_type=0)
+    main(solver, filepath=filepath + "/2", gap_month=2, type=type, dimreduce_func = feature_reduction.gbdt_dimreduce_number, transform_type=0)
     evaluate.mergeoutput(filepath)
