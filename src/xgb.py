@@ -34,7 +34,19 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
     transform_type: 0: no transform, 1: ratiolize predict, 2: loglize predict
     shuffle: every shuffle number, shuffle the train data
     """
-    logging.info(train_x.shape)
+#normalize feature
+    all_x=np.vstack([train_x, validation_x, test_x])
+    mean_x=np.mean(all_x, axis=0)
+    std_x=np.std(all_x, axis=0)
+    _col=std_x>0
+    del all_x
+    train_x[:, _col]=(train_x[:, _col]-mean_x[_col])/std_x[_col]
+    validation_x[:, _col]=(validation_x[:, _col]-mean_x[_col])/std_x[_col]
+    test_x[:, _col]=(test_x[:, _col]-mean_x[_col])/std_x[_col]
+    
+#add validation data to train data
+#    train_x=np.vstack([train_x, validation_x])
+#    train_y=np.hstack([train_y, validation_y])
 
     col_last_month_plays=None
     for i in xrange(len(feature_names)):
@@ -56,13 +68,17 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
         'eta' : 0.03,
         'silent': 1,
         'objective' : 'reg:linear',
-        'max_depth' : 4,
+        'max_depth' : 7,
         'seed' : 1000000007,
+        'gamma': 0,  # default 0, minimum loss reduction required to partition
+        'min_child_weight':1000, # default 1, minimun number of instances in each node
+        'alpha':0, # default 0, L1 norm
+        'lambda':1, # default 1, L2 norm
     }
 
     watchlist=[(dtrain,'train'),(dvalidation,'validation')]
 
-    max_num_round=500
+    max_num_round=600
     best_num_round=0
     best_val=float('-Inf')
     curr_round=0

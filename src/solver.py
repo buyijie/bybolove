@@ -4,7 +4,7 @@
 import sys
 import logging
 import datetime
-from utils import evaluate, data_handler, feature_reduction
+from utils import pkl, evaluate, data_handler, feature_reduction
 
 sys.path.insert(0, '..')
 from configure import *
@@ -58,6 +58,20 @@ def main(solver, filepath,  gap_month = 1, type = 'unit', dimreduce_func = featu
     columns.remove('song_id')
     columns.remove('artist_id')
     columns.remove('label_plays')
+
+    columns.remove('artist_id_numeric')
+    columns.remove('song_id_numeric')
+
+#delete some features that i think not important
+    del_name=[]
+    for _name in columns:
+        if ('Morning' in _name) or ('Noon' in _name) or ('Afternoon' in _name) or ('Evening' in _name) or ('Midnight' in _name):
+            del_name.append(_name)
+
+    for _name in del_name:
+        columns.remove(_name)
+
+#    pkl.store(columns, ROOT+'/data/feature_name')
 #use data after month since_when to train model
     rows_train=training.month.values>since_when
 
@@ -85,5 +99,5 @@ def run(solver, type = 'unit') :
     filepath = ROOT + '/result/' + now_time
     os.system('mkdir ' + filepath)
     main(solver, filepath=filepath + "/1", gap_month=1, type=type, dimreduce_func = feature_reduction.undo, transform_type=0) 
-    main(solver, filepath=filepath + "/2", gap_month=2, type=type, dimreduce_func = feature_reduction.gbdt_dimreduce_number, transform_type=0)
+    main(solver, filepath=filepath + "/2", gap_month=2, type=type, dimreduce_func = feature_reduction.xgb_dimreduce_number, transform_type=0)
     evaluate.mergeoutput(filepath)

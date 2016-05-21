@@ -8,6 +8,7 @@ import numpy as np
 import utils.pkl as pkl
 from sklearn.decomposition import PCA 
 from sklearn.ensemble import GradientBoostingRegressor
+import xgboost as xgb
 
 sys.path.insert(0, '..')
 sys.path.insert(0, '../..')
@@ -160,6 +161,91 @@ def undo (train_x, train_y, validation_x, validation_y, test_x, feature_name, ga
     """
     logging.info('no feature reduction')
     return train_x, validation_x, test_x, feature_name
+
+def xgb_feature_importance (train, label, gap_month = 1, type = 'unit', feature_names=[]) :
+    filepath = ROOT + '/data/xgb_feature_importance_%d_%s' % (gap_month, type)
+    if os.path.exists (filepath) :
+        logging.info (filepath + ' exists!')
+        feature_importance = pkl.grab (filepath)
+    else :
+        logging.info ('xgb_feature_importance start!')
+        logging.info ('the size of data used to cal feature importance is (%d %d)' % train.shape)
+        dtrain=xgb.DMatrix(train, label=label, feature_names=feature_names)
+        params = {
+            'eta' : 0.03,
+            'silent': 1,
+            'objective' : 'reg:linear',
+            'max_depth' : 4,
+            'seed' : 1000000007,
+            'gamma': 0,  # default 0, minimum loss reduction required to partition
+            'min_child_weight':1, # default 1, minimun number of instances in each node
+            'alpha':0, # default 0, L1 norm
+            'lambda':1, # default 1, L2 norm
+        }       
+        bst = xgb.train(params, dtrain, num_boost_round=500)
+        feature_importance_tmp=bst.get_fscore()
+        feature_importance = np.array([ feature_importance_tmp[c] if c in feature_importance_tmp else 0 for c in feature_names ],dtype=np.float64)
+        feature_importance = 100.0 * (feature_importance / feature_importance.max())       
+        pkl.store (feature_importance, filepath)
+    return feature_importance
+
+def xgb_dimreduce_threshold (train_x, train_y, validation_x, validation_y, test_x,  feature_name, feature_threshold = GBDTFEATURETHRESHOLD, gap_month = 1, type = 'unit') :
+    """
+    """
+    if train_x.shape[0] != train_y.shape[0] or validation_x.shape[0] != validation_y.shape[0] :
+        logging.error('the size of data set is mismatch')
+        exit(-1)
+    if train_x.shape[1] != validation_x.shape[1] :
+        logging.error('the number of feature in different data set is mismatch')
+        exit(-1)
+    logging.info ('begin xgb_dimreduce_threshold')
+    logging.info ('before xgb dim-reducing : (%d %d)' % (train_x.shape))
+#!!!over-fit, the feature_importance is not accurate?
+    data = np.vstack([train_x, validation_x])
+    label = np.hstack([train_y, validation_y])
+    feature_importance = xgb_feature_importance (data, label, gap_month = gap_month, type = type, feature_names=feature_name)
+    important_index = np.where (feature_importance > feature_threshold)[0]
+    sorted_index = np.argsort (feature_importance[important_index])[::-1]
+
+    new_train = train_x[:,important_index][:,sorted_index]
+    new_validation = validation_x[:,important_index][:,sorted_index]
+    new_test = test_x[:,important_index][:,sorted_index]
+    new_feature_name = [feature_name[i] for i in important_index]
+    new_feature_name = [new_feature_name[i] for i in sorted_index]
+    logging.info ('after xgb dim-reducing : (%d %d)' % (new_train.shape))
+    logging.info('finished feature reduction, the original feature is :')
+    print feature_name
+    logging.info('the new feature is :')
+    print new_feature_name
+    return new_train, new_validation, new_test, new_feature_name
+
+def xgb_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x, feature_name, feature_number = GBDTFEATURENUMBER, gap_month = 1, type = 'unit') :
+    """
+    """
+    if train_x.shape[0] != train_y.shape[0] or validation_x.shape[0] != validation_y.shape[0] :
+        logging.error('the size of data set is mismatch')
+        exit(-1)
+    if train_x.shape[1] != validation_x.shape[1] :
+        logging.error('the number of feature in different data set is mismatch')
+        exit(-1)
+    logging.info ('begin xgb_dimreduce_number')
+    logging.info ('before xgb dim-reducing : (%d %d)' % (train_x.shape))
+    data = np.vstack([train_x, validation_x])
+    label = np.hstack([train_y, validation_y])
+    feature_importance = xgb_feature_importance (data, label, gap_month = gap_month, type = type, feature_names=feature_name)
+    sorted_index = np.argsort (feature_importance)[::-1]
+    sorted_index = sorted_index[:feature_number]
+    
+    new_train = train_x[:,sorted_index]
+    new_validation = validation_x[:,sorted_index]
+    new_test = test_x[:,sorted_index]
+    new_feature_name = [feature_name[i] for i in sorted_index]
+    logging.info ('after xgb dim-reducing : (%d %d)' % (new_train.shape))
+    logging.info('finished feature reduction, the original feature is :')
+    print feature_name
+    logging.info('the new feature is :')
+    print new_feature_name
+    return new_train, new_validation, new_test, new_feature_name
 
 if __name__ == '__main__' :
     pass
