@@ -210,13 +210,13 @@ def xgb_feature_importance (train_x, train_y, validation_x, validation_y, featur
         }       
         while len(remaining_feature) > 20 :
             logging.info('the number of remaining feature is %d' % len(remaining_feature))
-            dtrain=xgb.DMatrix(train_x, label=train_y, feature_names=feature_name)
-            dvalidation=xgb.DMatrix(validation_x, label=validation_y, feature_names=feature_name)
+            dtrain=xgb.DMatrix(train_x, label=train_y, feature_names=remaining_feature)
+            dvalidation=xgb.DMatrix(validation_x, label=validation_y, feature_names=remaining_feature)
             watchlist=[(dtrain, 'train'), (dvalidation, 'validation')]
             evals_result={}
             bst = xgb.train(params, dtrain, num_boost_round=300, evals=watchlist, evals_result=evals_result, early_stopping_rounds=15)
             feature_importance_tmp=bst.get_fscore()
-            feature_importance = np.array([ feature_importance_tmp[c] if c in feature_importance_tmp else 0 for c in feature_name ],dtype=np.float64)
+            feature_importance = np.array([ feature_importance_tmp[c] if c in feature_importance_tmp else 0 for c in remaining_feature],dtype=np.float64)
             feature_importance = 100.0 * (feature_importance / feature_importance.max())       
 
             sorted_index = np.argsort (feature_importance)[::-1]
