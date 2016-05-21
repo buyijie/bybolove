@@ -63,6 +63,7 @@ def main(solver, filepath,  gap_month = 1, type = 'unit', dimreduce_func = featu
     columns.remove('song_id_numeric')
 
 #delete some features that i think not important
+    """
     del_name=[]
     for _name in columns:
         if ('Morning' in _name) or ('Noon' in _name) or ('Afternoon' in _name) or ('Evening' in _name) or ('Midnight' in _name):
@@ -70,6 +71,7 @@ def main(solver, filepath,  gap_month = 1, type = 'unit', dimreduce_func = featu
 
     for _name in del_name:
         columns.remove(_name)
+    """
 
 #    pkl.store(columns, ROOT+'/data/feature_name')
 #use data after month since_when to train model
@@ -98,6 +100,6 @@ def run(solver, type = 'unit') :
     now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H%M%S')
     filepath = ROOT + '/result/' + now_time
     os.system('mkdir ' + filepath)
-    main(solver, filepath=filepath + "/1", gap_month=1, type=type, dimreduce_func = feature_reduction.undo, transform_type=0) 
-    main(solver, filepath=filepath + "/2", gap_month=2, type=type, dimreduce_func = feature_reduction.xgb_dimreduce_number, transform_type=0)
+    main(solver, filepath=filepath + "/1", gap_month=1, type=type, dimreduce_func = feature_reduction.gbdt_dimreduce_number, transform_type=0) 
+    main(solver, filepath=filepath + "/2", gap_month=2, type=type, dimreduce_func = feature_reduction.gbdt_dimreduce_number, transform_type=0)
     evaluate.mergeoutput(filepath)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 
+import copy
 import sys
 import logging
 import pandas as pd
@@ -50,17 +51,40 @@ def pca (train_x,  train_y, validation_x, validation_y, test_x, feature_name, ga
     print new_feature_name
     return pca_data[:train_x.shape[0],:], pca_data[train_x.shape[0]:-test_x.shape[0]], pca_data[-test_x.shape[0]:], new_feature_name
 
-def gbdt_feature_importance (train, label, gap_month = 1, type = 'unit') :
+def gbdt_feature_importance (train_x, train_y, validation_x, validation_y, feature_name, gap_month = 1, type = 'unit') :
     filepath = ROOT + '/data/feature_importance_%d_%s' % (gap_month, type)
     if os.path.exists (filepath) :
         logging.info (filepath + ' exists!')
         feature_importance = pkl.grab (filepath)
     else :
         logging.info ('feature_importance start!')
-        logging.info ('the size of data used to cal feature importance is (%d %d)' % train.shape)
-        gb = GradientBoostingRegressor(n_estimators = 500 , learning_rate = 0.03 , max_depth = 3 , random_state = 1000000007, verbose = 1).fit (train, label)
-        feature_importance = gb.feature_importances_
-        feature_importance = 100.0 * (feature_importance / feature_importance.max ())
+        logging.info ('the size of data used to cal feature importance is (%d %d)' % train_x.shape)
+         
+        remaining_feature = copy.deepcopy(feature_name)
+        each_step_removed = 20
+        feature_rank = {}
+        rank = 0 
+        while len(remaining_feature) > 20 :
+            logging.info('the number of remaining feature is %d' % len(remaining_feature))
+            gb = GradientBoostingRegressor(n_estimators = 300 , learning_rate = 0.03 , max_depth = 5, min_samples_leaf = 1000 , random_state = 1000000007, verbose = 1).fit (train_x, train_y)
+            feature_importance = gb.feature_importances_
+            feature_importance = 100.0 * (feature_importance / feature_importance.max ())
+
+            sorted_index = np.argsort (feature_importance)[::-1]
+
+            for feature_index in sorted_index[::-1]:
+                rank += 1
+                feature_rank[remaining_feature[feature_index]] = rank 
+
+            with open (filepath + '_' + str(len(remaining_feature)), 'w') as out :
+                for key, val, in sorted(feature_rank.items(), key = lambda v : v[1], reverse = True) :
+                    out.write('%s %d\n' % (key, val))
+            train_x = train_x[:,sorted_index[:-each_step_removed]] 
+            remaining_feature = [remaining_feature[p] for p in sorted_index[:-each_step_removed]]
+
+        feature_importance = []
+        for feature in feature_name :
+            feature_importance.append(feature_rank[feature])
         pkl.store (feature_importance, filepath)
     return feature_importance
 
@@ -104,9 +128,7 @@ def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x,
         exit(-1)
     logging.info ('begin gbdt_dimreduce_number')
     logging.info ('before gbdt dim-reducing : (%d %d)' % (train_x.shape))
-    data = np.vstack([train_x, validation_x])
-    label = np.hstack([train_y, validation_y])
-    feature_importance = gbdt_feature_importance (data, label, gap_month = gap_month, type = type)
+    feature_importance = gbdt_feature_importance (train_x, train_y, validation_x, validation_y, feature_name, gap_month = gap_month, type = type)
     sorted_index = np.argsort (feature_importance)[::-1]
     sorted_index = sorted_index[:feature_number]
     
