@@ -184,15 +184,19 @@ def undo (train_x, train_y, validation_x, validation_y, test_x, feature_name, ga
     logging.info('no feature reduction')
     return train_x, validation_x, test_x, feature_name
 
-def xgb_feature_importance (train, label, gap_month = 1, type = 'unit', feature_names=[]) :
+def xgb_feature_importance (train_x, train_y, validation_x, validation_y, feature_name, gap_month = 1, type = 'unit') :
     filepath = ROOT + '/data/xgb_feature_importance_%d_%s' % (gap_month, type)
     if os.path.exists (filepath) :
         logging.info (filepath + ' exists!')
         feature_importance = pkl.grab (filepath)
     else :
         logging.info ('xgb_feature_importance start!')
-        logging.info ('the size of data used to cal feature importance is (%d %d)' % train.shape)
-        dtrain=xgb.DMatrix(train, label=label, feature_names=feature_names)
+        logging.info ('the size of data used to cal feature importance is (%d %d)' % train_x.shape)
+        
+        remaining_feature=copy.deepcopy(feature_name)
+        each_step_removed=20
+        feature_rank={}
+        rank=0
         params = {
             'eta' : 0.03,
             'silent': 1,
@@ -204,10 +208,33 @@ def xgb_feature_importance (train, label, gap_month = 1, type = 'unit', feature_
             'alpha':0, # default 0, L1 norm
             'lambda':1, # default 1, L2 norm
         }       
-        bst = xgb.train(params, dtrain, num_boost_round=500)
-        feature_importance_tmp=bst.get_fscore()
-        feature_importance = np.array([ feature_importance_tmp[c] if c in feature_importance_tmp else 0 for c in feature_names ],dtype=np.float64)
-        feature_importance = 100.0 * (feature_importance / feature_importance.max())       
+        while len(remaining_feature) > 20 :
+            logging.info('the number of remaining feature is %d' % len(remaining_feature))
+            dtrain=xgb.DMatrix(train_x, label=train_y, feature_names=feature_name)
+            dvalidation=xgb.DMatrix(validation_x, label=validation_y, feature_names=feature_name)
+            watchlist=[(dtrain, 'train'), (dvalidation, 'validation')]
+            evals_result={}
+            bst = xgb.train(params, dtrain, num_boost_round=300, evals=watchlist, evals_result=evals_result, early_stopping_rounds=15)
+            feature_importance_tmp=bst.get_fscore()
+            feature_importance = np.array([ feature_importance_tmp[c] if c in feature_importance_tmp else 0 for c in feature_name ],dtype=np.float64)
+            feature_importance = 100.0 * (feature_importance / feature_importance.max())       
+
+            sorted_index = np.argsort (feature_importance)[::-1]
+
+            for feature_index in sorted_index[::-1]:
+                rank += 1
+                feature_rank[remaining_feature[feature_index]] = rank 
+
+            with open (filepath + '_' + str(len(remaining_feature)), 'w') as out :
+                for key, val, in sorted(feature_rank.items(), key = lambda v : v[1], reverse = True) :
+                    out.write('%s %d\n' % (key, val))
+            train_x = train_x[:,sorted_index[:-each_step_removed]] 
+            validation_x = validation_x[:, sorted_index[:-each_step_removed]]
+            remaining_feature = [remaining_feature[p] for p in sorted_index[:-each_step_removed]]
+
+        feature_importance = []
+        for feature in feature_name :
+            feature_importance.append(feature_rank[feature])
         pkl.store (feature_importance, filepath)
     return feature_importance
 
@@ -222,10 +249,7 @@ def xgb_dimreduce_threshold (train_x, train_y, validation_x, validation_y, test_
         exit(-1)
     logging.info ('begin xgb_dimreduce_threshold')
     logging.info ('before xgb dim-reducing : (%d %d)' % (train_x.shape))
-#!!!over-fit, the feature_importance is not accurate?
-    data = np.vstack([train_x, validation_x])
-    label = np.hstack([train_y, validation_y])
-    feature_importance = xgb_feature_importance (data, label, gap_month = gap_month, type = type, feature_names=feature_name)
+    feature_importance = xgb_feature_importance (train_x, train_y, validation_x, validation_y, feature_name, gap_month = gap_month, type = type)
     important_index = np.where (feature_importance > feature_threshold)[0]
     sorted_index = np.argsort (feature_importance[important_index])[::-1]
 
@@ -252,9 +276,7 @@ def xgb_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x, 
         exit(-1)
     logging.info ('begin xgb_dimreduce_number')
     logging.info ('before xgb dim-reducing : (%d %d)' % (train_x.shape))
-    data = np.vstack([train_x, validation_x])
-    label = np.hstack([train_y, validation_y])
-    feature_importance = xgb_feature_importance (data, label, gap_month = gap_month, type = type, feature_names=feature_name)
+    feature_importance = xgb_feature_importance (train_x, train_y, validation_x, validation_y, feature_name, gap_month = gap_month, type = type)
     sorted_index = np.argsort (feature_importance)[::-1]
     sorted_index = sorted_index[:feature_number]
     

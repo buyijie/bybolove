@@ -35,32 +35,32 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
     shuffle: every shuffle number, shuffle the train data
     """
 #normalize feature
-    all_x=np.vstack([train_x, validation_x, test_x])
-    mean_x=np.mean(all_x, axis=0)
-    std_x=np.std(all_x, axis=0)
-    _col=std_x>0
-    del all_x
-    train_x[:, _col]=(train_x[:, _col]-mean_x[_col])/std_x[_col]
-    validation_x[:, _col]=(validation_x[:, _col]-mean_x[_col])/std_x[_col]
-    test_x[:, _col]=(test_x[:, _col]-mean_x[_col])/std_x[_col]
+#    all_x=np.vstack([train_x, validation_x, test_x])
+#    mean_x=np.mean(all_x, axis=0)
+#    std_x=np.std(all_x, axis=0)
+#    _col=std_x>0
+#    del all_x
+#    train_x[:, _col]=(train_x[:, _col]-mean_x[_col])/std_x[_col]
+#    validation_x[:, _col]=(validation_x[:, _col]-mean_x[_col])/std_x[_col]
+#    test_x[:, _col]=(test_x[:, _col]-mean_x[_col])/std_x[_col]
     
 #add validation data to train data
 #    train_x=np.vstack([train_x, validation_x])
 #    train_y=np.hstack([train_y, validation_y])
 
-    col_last_month_plays=None
-    for i in xrange(len(feature_names)):
-        if feature_names[i]=='last_month_plays':
-            col_last_month_plays=i
-    assert col_last_month_plays is not None, 'No feature last_month_plays found!'
-
-    train_last_month_plays=train_x[:, col_last_month_plays]
-    validation_last_month_plays=validation_x[:, col_last_month_plays]
-    test_last_month_plays=test_x[:, col_last_month_plays]
+#    col_last_month_plays=None
+#    for i in xrange(len(feature_names)):
+#        if feature_names[i]=='last_month_plays':
+#            col_last_month_plays=i
+#    assert col_last_month_plays is not None, 'No feature last_month_plays found!'
+#
+#    train_last_month_plays=train_x[:, col_last_month_plays]
+#    validation_last_month_plays=validation_x[:, col_last_month_plays]
+#    test_last_month_plays=test_x[:, col_last_month_plays]
 
 #Transform predict
-    dtrain=xgb.DMatrix(train_x, label=Transform(train_y, transform_type, train_last_month_plays), feature_names=feature_names)
-    dvalidation=xgb.DMatrix(validation_x, Transform(validation_y, transform_type, validation_last_month_plays), feature_names=feature_names)
+    dtrain=xgb.DMatrix(train_x, label=Transform(train_y, transform_type), feature_names=feature_names)
+    dvalidation=xgb.DMatrix(validation_x, Transform(validation_y, transform_type), feature_names=feature_names)
     dtest=xgb.DMatrix(test_x, feature_names=feature_names)
 
     logging.info('start training the xgboost model')
@@ -78,14 +78,14 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
 
     watchlist=[(dtrain,'train'),(dvalidation,'validation')]
 
-    max_num_round=600
+    max_num_round=300
     best_num_round=0
     best_val=float('-Inf')
     curr_round=0
     curr_val=0
     history_train_val=[]
     history_validation_val=[]
-    interval=10
+    interval=5
 
     assert max_num_round%interval==0, "max_num_round must be multiple of interval"
     evals_result={}
@@ -97,7 +97,7 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
         logging.info('current round is: %d' % curr_round)
         predict=bst.predict(dvalidation)
 #detransform to plays
-        predict=Convert2Plays(predict, transform_type, validation_last_month_plays)
+        predict=Convert2Plays(predict, transform_type)
         predict=HandlePredict(predict.tolist())
         curr_val=evaluate.evaluate(predict, validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
         history_validation_val.append(curr_val)
@@ -111,14 +111,14 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
         #shuffle train_x train_y last_month_plays
         if (shuffle>0) and (curr_round%shuffle==0):
             indices=np.random.permutation(train_x.shape[0])
-            dtrain=xgb.DMatrix(train_x[indices,:], label=Transform(train_y[indices], transform_type, train_last_month_plays[indices]), feature_names=feature_names)
+            dtrain=xgb.DMatrix(train_x[indices,:], label=Transform(train_y[indices], transform_type), feature_names=feature_names)
             logging.info('shuffle')
 
-    dtrain=xgb.DMatrix(train_x, label=Transform(train_y, transform_type, train_last_month_plays), feature_names=feature_names)
+    dtrain=xgb.DMatrix(train_x, label=Transform(train_y, transform_type), feature_names=feature_names)
     bst=xgb.Booster(model_file=filepath +'/model/xgboost.model')
     predict = bst.predict(dvalidation)
 #detransform to plays
-    predict=Convert2Plays(predict, transform_type, validation_last_month_plays)
+    predict=Convert2Plays(predict, transform_type)
 
     with open(filepath + '/parameters.param', 'w') as out :
         for key, val in params.items():
@@ -128,8 +128,8 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
         out.write('transform_type: '+str(transform_type)+'\n')
 
     if validation_y.shape[0]  :
-        logging.info('the loss in Training set is %.4f' % mean_squared_error(train_y, Convert2Plays(bst.predict(dtrain), transform_type, train_last_month_plays)))
-        logging.info('the loss in Validation_set is %.4f' % mean_squared_error(validation_y, Convert2Plays(bst.predict(dvalidation), transform_type, validation_last_month_plays)))
+        logging.info('the loss in Training set is %.4f' % mean_squared_error(train_y, Convert2Plays(bst.predict(dtrain), transform_type)))
+        logging.info('the loss in Validation_set is %.4f' % mean_squared_error(validation_y, Convert2Plays(bst.predict(dvalidation), transform_type)))
 
         plt.figure(figsize=(12, 6))
         # Plot feature importance
@@ -163,14 +163,14 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
 
         plt.savefig(filepath + '/statistics.jpg')
 
-        print "not zero prediction : %d " % sum( [ i!=0 for i in Convert2Plays(predict, transform_type, validation_last_month_plays).astype(int).tolist()] )
+        print "not zero prediction : %d " % sum( [ i!=0 for i in Convert2Plays(predict, transform_type).astype(int).tolist()] )
         print "total number of train data : %d" % train_y.shape[0]
         print "not zero label train data : %d" % sum(train_y!=0)
         print "total number of validation data : %d" % validation_y.shape[0]
         print "not zero label validation data : %d" % sum(validation_y!=0)
         print "best_num_round : %d" % best_num_round
 
-    return predict, Convert2Plays(bst.predict(dtest), transform_type, test_last_month_plays)
+    return predict, Convert2Plays(bst.predict(dtest), transform_type)
 
 if __name__ == "__main__":
     try:
