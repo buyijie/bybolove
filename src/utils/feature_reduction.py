@@ -52,7 +52,7 @@ def pca (train_x,  train_y, validation_x, validation_y, test_x, feature_name, ga
     return pca_data[:train_x.shape[0],:], pca_data[train_x.shape[0]:-test_x.shape[0]], pca_data[-test_x.shape[0]:], new_feature_name
 
 def gbdt_feature_importance (train_x, train_y, validation_x, validation_y, feature_name, gap_month = 1, type = 'unit') :
-    filepath = ROOT + '/data/feature_importance_%d_%s' % (gap_month, type)
+    filepath = ROOT + '/data/feature_importance_gbdt_%d_%s' % (gap_month, type)
     if os.path.exists (filepath) :
         logging.info (filepath + ' exists!')
         feature_importance = pkl.grab (filepath)
@@ -185,7 +185,7 @@ def undo (train_x, train_y, validation_x, validation_y, test_x, feature_name, ga
     return train_x, validation_x, test_x, feature_name
 
 def xgb_feature_importance (train_x, train_y, validation_x, validation_y, feature_name, gap_month = 1, type = 'unit') :
-    filepath = ROOT + '/data/xgb_feature_importance_%d_%s' % (gap_month, type)
+    filepath = ROOT + '/data/xgb_feature_importance_xgb_%d_%s' % (gap_month, type)
     if os.path.exists (filepath) :
         logging.info (filepath + ' exists!')
         feature_importance = pkl.grab (filepath)
