@@ -9,18 +9,41 @@ from utils import pkl, evaluate, data_handler, feature_reduction
 sys.path.insert(0, '..')
 from configure import *
 
-def HandlePredict(predict) :
+song_removed = None
+
+def ReadSongRetainList(type, gap_month) :
+    filepath = ROOT + "/data/which_song_removed_" + type + "_" + str(gap_month)
+    global song_removed
+    if not os.path.exists(filepath) :
+        logging.warning(filepath + ' is not exists!')
+        song_removed = []
+    else :
+        song_removed = []
+        file = open(filepath)
+        for each in file :
+            song_removed.append(each)
+
+def HandlePredict(predict, song_id = None) :
     """
     """
     # FLOOR value
     # negative -> zero
 # max(1, int(v))????
     predict = map(lambda v : max(0, int(v)), predict)
+    if song_id is None : return predict
+    assert len(song_id) == len(predict)
+    global song_removed
+    for i in xrange(len(song_id)) :
+        if song_id[i] in song_removed:
+            predict[i] = 0
     return predict
 
 def main(solver, filepath,  gap_month = 1, type = 'unit', dimreduce_func = feature_reduction.undo, since_when=201503, transform_type=0) :
     """
     """
+    ReadSongRetainList(type, gap_month)
+
+
     os.system('mkdir ' + filepath)
     os.system('mkdir ' + filepath + '/model')
 
@@ -84,9 +107,9 @@ def main(solver, filepath,  gap_month = 1, type = 'unit', dimreduce_func = featu
     test_x = testing.ix[:, columns].values
     # feature reduction
     train_x, validation_x, test_x, columns = dimreduce_func(train_x, train_y, validation_x, validation_y, test_x, columns, gap_month = gap_month, type = type)
-    predict_validation, predict_test = solver(train_x, train_y, validation_x, test_x, filepath, validation_y = validation_y, feature_names = columns, validation_artist_id=validation.artist_id.values.tolist(), validation_month=validation.month.values.astype(int).tolist(), validation_label_day=validation.label_day.values.astype(int).tolist(), transform_type=transform_type)
-    predict_validation = HandlePredict(predict_validation.tolist())
-    predict_test = HandlePredict(predict_test.tolist())
+    predict_validation, predict_test = solver(train_x, train_y, validation_x, test_x, filepath, validation_y = validation_y, feature_names = columns, validation_artist_id=validation.artist_id.values.tolist(), validation_month=validation.month.values.astype(int).tolist(), validation_label_day=validation.label_day.values.astype(int).tolist(), transform_type=transform_type, validation_song_id=validation.song_id.values)
+    predict_validation = HandlePredict(predict_validation.tolist(), validation.song_id.values)
+    predict_test = HandlePredict(predict_test.tolist(), testing.song_id.values)
     score = evaluate.evaluate(predict_validation, validation_y.tolist(), validation.artist_id.values.tolist(), validation.month.values.astype(int).tolist(), validation.label_day.values.astype(int).tolist())
     evaluate.output(ROOT + '/predict_' + str(gap_month) ,predict_test, testing.artist_id.values.tolist(), testing.month.values.astype(int).tolist(), testing.label_day.values.astype(int).tolist())
     logging.info('the final score is %.10f' % score)
@@ -100,6 +123,6 @@ def run(solver, type = 'unit') :
     now_time = datetime.datetime.strftime(now_time, '%Y%m%d-%H%M%S')
     filepath = ROOT + '/result/' + now_time
     os.system('mkdir ' + filepath)
-    main(solver, filepath=filepath + "/1", gap_month=1, type=type, dimreduce_func = feature_reduction.gbdt_dimreduce_number, transform_type=0) 
-    main(solver, filepath=filepath + "/2", gap_month=2, type=type, dimreduce_func = feature_reduction.gbdt_dimreduce_number, transform_type=0)
+    main(solver, filepath=filepath + "/1", gap_month=1, type=type, dimreduce_func = feature_reduction.undo, transform_type=0) 
+    main(solver, filepath=filepath + "/2", gap_month=2, type=type, dimreduce_func = feature_reduction.undo, transform_type=0)
     evaluate.mergeoutput(filepath)

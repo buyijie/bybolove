@@ -29,7 +29,7 @@ def usage() :
     print '-h, --help: print help message'
     print '-t, --type: the type of data need to handler, default = unit'
 
-def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0, shuffle=0):
+def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0, shuffle=0, validation_song_id=None):
     """
     transform_type: 0: no transform, 1: ratiolize predict, 2: loglize predict
     shuffle: every shuffle number, shuffle the train data
@@ -98,7 +98,7 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
         predict=bst.predict(dvalidation)
 #detransform to plays
         predict=Convert2Plays(predict, transform_type)
-        predict=HandlePredict(predict.tolist())
+        predict=HandlePredict(predict.tolist(), validation_song_id)
         curr_val=evaluate.evaluate(predict, validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
         history_validation_val.append(curr_val)
         # train_val is rmse, not final score

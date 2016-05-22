@@ -35,11 +35,12 @@ def loss_function(label, predict) :
     """
     return sum((abs(label - predict) / label) ** 2) / len(label)
 
-def gbdt_solver(train_x, train_y, validation_x, test_x, filepath, validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0) :
+def gbdt_solver(train_x, train_y, validation_x, test_x, filepath, validation_y = np.array([]), feature_names = [], validation_artist_id=None, validation_month=None, validation_label_day=None, transform_type=0, validation_song_id=None) :
     """
     """
     logging.info('start training the gbdt model')
 
+    """
     col_last_month_plays=None
     for i in xrange(len(feature_names)):
         if feature_names[i]=='last_month_plays':
@@ -61,7 +62,7 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, filepath, validation_y =
 
     train_y = Transform(train_y, transform_type, train_last_month_plays)
     validation_y = Transform(validation_y, transform_type, validation_last_month_plays)
-
+    """
  
     params = {
         'n_estimators': 0,
@@ -73,7 +74,7 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, filepath, validation_y =
     }
 
 
-    max_num_round = 500 
+    max_num_round = 100 
     batch = 10
     best_val = -1e60
     history_validation_val = []
@@ -92,9 +93,9 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, filepath, validation_y =
         curr_round += batch
         predict = gb.predict(validation_x)
         #detransform to plays
-        predict=Convert2Plays(predict, transform_type, validation_last_month_plays)
-        predict = HandlePredict(predict.tolist())
-        curr_val = evaluate.evaluate(predict, tmp_validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
+        predict=Convert2Plays(predict, transform_type)
+        predict = HandlePredict(predict.tolist(), validation_song_id)
+        curr_val = evaluate.evaluate(predict, validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
         history_validation_val.append(curr_val)
         logging.info('the current score is %.10f' % curr_val)
         if curr_round >= 100 and curr_val > best_val:
@@ -106,7 +107,7 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, filepath, validation_y =
     gb = joblib.load(filepath + '/model/gbdt.pkl')
     predict = gb.predict(validation_x)
     #detransform to plays
-    predict=Convert2Plays(predict, transform_type, validation_last_month_plays)
+    predict=Convert2Plays(predict, transform_type)
 
     with open(filepath + '/parameters.param', 'w') as out :
         for key, val in params.items():
@@ -152,7 +153,7 @@ def gbdt_solver(train_x, train_y, validation_x, test_x, filepath, validation_y =
 
         plt.savefig(filepath + '/statistics.jpg')
 
-    return predict, Transform(gb.predict(test_x), transform_type, test_last_month_plays)
+    return predict, Transform(gb.predict(test_x), transform_type)
 
 def main (type) :
     """

@@ -38,13 +38,28 @@ def read (type, gap_month = 1, consecutive_recent = [14, 7, 3]) :
     training = pd.read_csv(training_path)
     return training, validation, testing
 
-def MergeBySongPlays(data, type = 'unit', gap_month = 1) :
+def Filter(data) :
+    """
+    """
+    # TO DO: 
+    return data
+
+def SongPlaysFilter(data, type = 'unit', gap_month = 1) :
+    """
+    """
+    song_month_groups = data.groupby(['song_id', 'month']).groups
+    for song_month, song_month_group in song_month_groups.items() :
+        data.loc[song_month_group].label_plays = Filter(data.loc[song_month_group].label_plays.values)
+    return data
+
+def DiscardBySongPlays(data, type = 'unit', gap_month = 1) :
     """
     """
     filepath = ROOT + '/data/total_song_plays_' + type + '_' + str(gap_month)
     with open(filepath, 'w') as out :
         out.write('artist_id,song_id,total_plays,percentage\n')
     artist_groups = data.groupby(['artist_id']).groups
+    song_removed = []
     song_retain = []
     for artist, artist_group in artist_groups.items() :
         data_artist = data.loc[artist_group]
@@ -63,13 +78,14 @@ def MergeBySongPlays(data, type = 'unit', gap_month = 1) :
                 if tot <= allPlays * 0.95 :
                     song_retain.append(song)
                 else :
+                    song_removed.append(song)
                     remove_cnt += 1
             logging.info('for artist %s, %d songs removed' % (artist, remove_cnt))
             out.write('#######################\n')
 
-    filepath = ROOT + '/data/which_song_retain_' + type + '_' + str(gap_month)
+    filepath = ROOT + '/data/which_song_removed_' + type + '_' + str(gap_month)
     with open (filepath, 'w') as out :
-        for song in song_retain :
+        for song in song_removed:
             out.write(song + '\n')
     return data[data.song_id.isin(song_retain)]
     
@@ -87,7 +103,8 @@ def main (type = 'unit', gap_month = 1) :
     """
     logging.info('do the data cleaning for type: %s, gap_month: %d' % (type, gap_month))
     training, validation, testing = read (type, gap_month = gap_month)
-    training = MergeBySongPlays(training, type = type, gap_month = gap_month)
+    training = SongPlaysFilter(training, type = type, gap_month = gap_month)
+    training = DiscardBySongPlays(training, type = type, gap_month = gap_month)
 
     output (training, validation, testing, type = type, gap_month = gap_month)
 
