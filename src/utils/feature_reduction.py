@@ -62,9 +62,11 @@ def gbdt_feature_importance (train_x, train_y, validation_x, validation_y, featu
          
         remaining_feature = copy.deepcopy(feature_name)
         each_step_removed = 20
+        max_round = 1
         feature_rank = {}
         rank = 0 
-        while len(remaining_feature) > 20 :
+        while len(remaining_feature) > 20 and max_round > 0 :
+            max_round -= 1
             logging.info('the number of remaining feature is %d' % len(remaining_feature))
             gb = GradientBoostingRegressor(n_estimators = 300 , learning_rate = 0.03 , max_depth = 5, min_samples_leaf = 1000 , random_state = 1000000007, verbose = 1).fit (train_x, train_y)
             feature_importance = gb.feature_importances_
@@ -128,7 +130,9 @@ def gbdt_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x,
         exit(-1)
     logging.info ('begin gbdt_dimreduce_number')
     logging.info ('before gbdt dim-reducing : (%d %d)' % (train_x.shape))
-    feature_importance = gbdt_feature_importance (train_x, train_y, validation_x, validation_y, feature_name, gap_month = gap_month, type = type)
+    data = np.vstack([train_x, validation_x])
+    label = np.hstack([train_y, validation_y])
+    feature_importance = gbdt_feature_importance (data, label, validation_x, validation_y, feature_name, gap_month = gap_month, type = type)
     sorted_index = np.argsort (feature_importance)[::-1]
     sorted_index = sorted_index[:feature_number]
     
@@ -196,6 +200,7 @@ def xgb_feature_importance (train_x, train_y, validation_x, validation_y, featur
         remaining_feature=copy.deepcopy(feature_name)
         each_step_removed=20
         feature_rank={}
+        max_round = 1
         rank=0
         params = {
             'eta' : 0.03,
@@ -208,7 +213,8 @@ def xgb_feature_importance (train_x, train_y, validation_x, validation_y, featur
             'alpha':0, # default 0, L1 norm
             'lambda':1, # default 1, L2 norm
         }       
-        while len(remaining_feature) > 20 :
+        while len(remaining_feature) > 20 and max_round > 0:
+            max_round -= 1
             logging.info('the number of remaining feature is %d' % len(remaining_feature))
             dtrain=xgb.DMatrix(train_x, label=train_y, feature_names=remaining_feature)
             dvalidation=xgb.DMatrix(validation_x, label=validation_y, feature_names=remaining_feature)
@@ -276,7 +282,9 @@ def xgb_dimreduce_number (train_x, train_y, validation_x, validation_y, test_x, 
         exit(-1)
     logging.info ('begin xgb_dimreduce_number')
     logging.info ('before xgb dim-reducing : (%d %d)' % (train_x.shape))
-    feature_importance = xgb_feature_importance (train_x, train_y, validation_x, validation_y, feature_name, gap_month = gap_month, type = type)
+    data = np.vstack([train_x, validation_x])
+    label = np.hstack([train_y, validation_y])
+    feature_importance = xgb_feature_importance (data, label, validation_x, validation_y, feature_name, gap_month = gap_month, type = type)
     sorted_index = np.argsort (feature_importance)[::-1]
     sorted_index = sorted_index[:feature_number]
     
