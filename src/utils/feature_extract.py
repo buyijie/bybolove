@@ -173,8 +173,7 @@ class FeatureExtract:
         for pre in xrange(n) :
             entry = sub.iloc[pre,:]
             if entry.action_type == 3:
-                is_collect = 1
-                break
+                is_collect += 1 
         return is_collect
 
     def GetIsDownload(self, sub, condition_hour = None) :
@@ -185,7 +184,7 @@ class FeatureExtract:
         for pre in xrange(n) :
             entry = sub.iloc[pre,:]
             if entry.action_type == 2:
-                is_download = 1
+                is_download += 1
         return is_download
 
     def GetTotalPlaysForFeature(self, sub, condition_hour = None) :
