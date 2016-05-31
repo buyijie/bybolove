@@ -13,6 +13,7 @@ import calendar
 import getopt
 from multiprocessing import Process
 from statistic import *
+import numpy as np
 
 import sys
 sys.path.insert(0, '..')
@@ -239,8 +240,7 @@ class FeatureExtract:
             else :
                 # lastday = calendar.monthrange(int(self.month_name_[month][:4]), int(self.month_name_[month][4:]))[1]
                 lastday = self.month_days_[month]
-                begin_day = StrToDate(self.month_name_[month][:4] + str(lastday - consecutive_days + 1))
-
+                begin_day = StrToDate(self.month_name_[month] + str(lastday - consecutive_days + 1))
                 song_date_st = 0
                 while song_date_st < n and StrToDate(sub.iloc[song_date_st,:].Ds) < begin_day :
                     song_date_st += 1
@@ -425,6 +425,38 @@ class FeatureExtract:
         logging.info('get combination feature from %s and %s by %s'% (A, B, ope))
         for month in xrange(len(self.month_data_)) :
             self.GetCombinationFeatureInOneMonth(A, B, month, ope)
+#todo
+    def GetMedianFeatureInOneMonth(self, recent_days, month) :
+        """
+        """
+        logging.info('get median feature from recent %d days in month %s' % (recent_days, self.month_name_[month]))
+        feature_name='median_plays_for_one_song_recent_'+str(recent_days)
+        filepath = ROOT + '/data/' + feature_name + '_' + self.month_name_[month] + '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '.csv'
+        if os.path.exists(filepath) :
+            logging.info(filepath + ' exists!')
+            return
+
+        data_list=[]
+        sid=None
+        for consecutive_days in xrange(1, recent_days+1):
+            _data=self.GetFromFile('temporary_total_plays_for_one_song_recent_'+str(consecutive_days), month)
+            sid=_data.song_id.values
+            data_list.append(_data['temporary_total_plays_for_one_song_recent_'+str(consecutive_days)].values.reshape([-1, 1]))
+        
+        data=pd.DataFrame({'song_id': sid})
+        _data=np.hstack(data_list)
+        _data_day=np.hstack([data_list[0], _data[:, 1:]-_data[:, :-1]])
+
+        data['median_plays_for_one_song_recent_'+str(recent_days)]=np.median(_data_day, 1)
+        data.to_csv(filepath, index = False)
+        logging.info('the feature %s is write into %s' % (feature_name, filepath))
+
+    def GetMedianFeature(self, recent_days) :
+        """
+        """
+        logging.info('get median feature from recent %d days'% (recent_days))
+        for month in xrange(len(self.month_data_)) :
+            self.GetMedianFeatureInOneMonth(recent_days, month)
 
     def GetCovariacneBetweenSongAndArtist(self, song_id, artist_id, month) :
         """
@@ -548,7 +580,13 @@ class FeatureExtract:
             self.GetSingleFeature('total_plays_for_one_song_recent_'+str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days=consecutive_days)
             for when,interval in HourInterval.items():
                 self.GetSingleFeature('total_plays_for_one_song_recent_'+str(consecutive_days)+'_for_'+when, self.GetTotalPlaysForFeatureInHourInterval, consecutive_days=consecutive_days, condition_hour=interval)
-        
+
+#todo median feature
+        for consecutive_days in xrange(1,31):
+            self.GetSingleFeature('temporary_total_plays_for_one_song_recent_'+str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days=consecutive_days)
+        for recent_days in [30, 14, 7, 3]:
+            self.GetMedianFeature(recent_days) 
+
 #        for hour in xrange(24) :
 #            self.GetSingleFeature('total_plays_for_one_song_all_for_hour_%d' % hour, self.GetTotalPlaysForFeatureInSpecificHour, condition_hour = hour)
 #        for consecutive_days in self.consecutive_recent_:
@@ -631,7 +669,7 @@ if __name__ == '__main__' :
         sys.exit(2)
 
     n_jobs = 1
-    type = 'unit'
+    _type = 'unit'
     for o, a in opts:
         if o in ('-h', '--help') :
             usage()
@@ -640,11 +678,11 @@ if __name__ == '__main__' :
             print a
             n_jobs = int(a)
         elif o in ('-t', '--type') :
-            type = a
+            _type = a
         else:
             print 'invalid parameter:', o
             usage()
             sys.exit(1)
 
-    feature_extract = FeatureExtract(type = type, n_jobs = n_jobs)
+    feature_extract = FeatureExtract(type = _type, n_jobs = n_jobs)
 
