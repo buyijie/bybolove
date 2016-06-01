@@ -255,6 +255,8 @@ class FeatureMerge :
         for when,interval in HourInterval.items() :
             feature_list.append('total_plays_for_one_song_all_for_'+when)
             feature_list.append('total_plays_for_one_song_all_for_'+when+'_div_total_plays_for_one_song_all')
+
+        feature_list.append('median_plays_for_one_song_recent_30')
         for consecutive_days in self.consecutive_recent_ :
             feature_list.append('total_plays_for_one_song_recent_' + str(consecutive_days))
             feature_list.append('median_plays_for_one_song_recent_'+str(consecutive_days))
