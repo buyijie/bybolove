@@ -31,10 +31,10 @@ def usage() :
 
 class Config():
     train_length=30
-    test_length=1
-    task_num=10
+    test_length=2
+    task_num=50
     lr=0.01
-    train_epoch=1000
+    train_epoch=100
 
 class MTGP():
     """
@@ -52,6 +52,7 @@ class MTGP():
 
     def add_variable(self):
         """
+        todo: control numerical precision, in avoid of Inf or Nan
         add trainable variables, i.e., L (a M*M lower triangle matrix), sigma_f (parameter covariance_function),
         l (parameter of covariance_function), D (a M*M diagonal matrix for white noise)  
         where M is the number of task, N is the number of train point in one task
@@ -80,7 +81,7 @@ class MTGP():
         """
         x_hat=tf.reshape(x_hat, [1,-1])
         diff=x-x_hat
-        return self.sigma_f*self.sigma_f*tf.exp(-1*diff*diff/(2*self.l*self.l))
+        return self.sigma_f*self.sigma_f*tf.exp(-1.*diff*diff/(2.*self.l*self.l))
 
     def add_loss(self):
         """
@@ -100,7 +101,7 @@ class MTGP():
         self.sigma=self.K+D_I
 
         self.loss=0.5*tf.matmul(tf.matmul(tf.transpose(self.train_y), tf.matrix_inverse(self.sigma)), self.train_y) \
-                +0.5*tf.log(tf.matrix_determinant(self.sigma))
+                +0.5*tf.log(tf.matrix_determinant(self.sigma)+0.01)
 
         
     def add_train_op(self):
@@ -142,7 +143,6 @@ class MTGP():
             self.train_y: train_y
         }
         loss, _ =session.run([self.loss, self.train_op], feed_dict=feed)
-        print loss
         return loss
         
     def predict(self, session, train_x, train_y, test_x):
@@ -154,10 +154,8 @@ class MTGP():
             self.train_y: train_y,
             self.test_x: test_x
         }
-        test_y=session.run(self.predict_op, feed_dict=feed)
-        print type(test_y)
-        print test_y
-        return test_y.reshape([-1, self.config.test_length]).T
+        pred_y=session.run(self.predict_op, feed_dict=feed)
+        return pred_y.reshape([-1, self.config.test_length]).T
 
 if __name__ == "__main__":
 
@@ -165,6 +163,11 @@ if __name__ == "__main__":
     ts_matrix=ts.values.astype(np.float32)
     artist_list=ts.columns.values
     config=Config()
+#   normalize time series data
+    ts_mean=np.mean(ts_matrix[0:config.train_length,:], axis=0)
+    ts_std=np.std(ts_matrix[0:config.train_length,:], axis=0)
+    ts_matrix=(ts_matrix-ts_mean)/ts_std
+
     train_x=(np.arange(config.train_length).astype(np.float32)+1).reshape([-1,1])
     train_y=ts_matrix[0:config.train_length,0:config.task_num].T.reshape([-1,1])
     test_x=(np.arange(config.test_length).astype(np.float32)+config.train_length+1).reshape([-1,1])
@@ -172,13 +175,29 @@ if __name__ == "__main__":
     model=MTGP(config)
     session=tf.Session()
     session.run(tf.initialize_all_variables())
-    print session.run([model.sigma, tf.matrix_determinant(model.sigma)], feed_dict={model.train_x: train_x, model.train_y: train_y})
+
+    monitor={ 
+        'sigma_f': model.sigma_f, 
+        'l': model.l, 
+        'D': model.D, 
+        'L': model.L, 
+        'K_c': tf.reduce_max(model.K_c), 
+        'K_x': tf.reduce_max(model.K_x),
+        'K': tf.reduce_max(model.K),
+        'sigma': tf.reduce_max(model.sigma),
+        'determinant': tf.log(tf.matrix_determinant(model.sigma)), 
+        'loss': model.loss,
+        'loss_compo1': 0.5*tf.matmul(tf.matmul(tf.transpose(model.train_y), tf.matrix_inverse(model.sigma)), model.train_y)
+    }
+    print ' ',session.run([monitor['loss'], monitor['determinant']] , feed_dict={model.train_x: train_x, model.train_y: train_y})
     for _ in xrange(config.train_epoch):
         print 'Epoch {}'.format(_)
-        model.train(session, train_x, train_y)
+        loss=model.train(session, train_x, train_y)
+        print ' ',session.run([monitor['loss'], monitor['determinant'], monitor['loss_compo1']] , feed_dict={model.train_x: train_x, model.train_y: train_y})
 
     predict_y=model.predict(session, train_x, train_y, test_x)
-    print test_y
+    print predict_y*ts_std+ts_mean[0:config.task_num]
+    print test_y.reshape([-1, config.test_length]).T*ts_std+ts_mean[0:config.task_num]
 #Unit Test
     sys.exit(0)
     #todo evaluate

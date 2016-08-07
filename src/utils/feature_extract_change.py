@@ -466,6 +466,7 @@ class FeatureExtract:
         days = self.month_days_[month]
         songs = []
         artists = []
+        print 'begin'
         for day in xrange(1, days + 1) :
             song_plays = for_song[for_song.Ds == int('%s%02d' % (self.month_name_[month], day))].plays.values
             if len(song_plays) == 0 :
@@ -479,6 +480,7 @@ class FeatureExtract:
                 artist_plays = artist_plays[0]
             songs.append(song_plays)
             artists.append(artist_plays)
+        print 'end'
 
         return CorrelationCoefficient(songs, artists)
 
@@ -504,6 +506,9 @@ class FeatureExtract:
 
         self.song_id_set_ = self.GetFromFile('Gender', month).song_id.values.tolist()
         n = len(self.song_id_set_)
+
+        print len(set(self.song_id_set_))
+        print n
 
         seperate = [0]
         for i in xrange(1, self.n_jobs_) :
@@ -563,28 +568,28 @@ class FeatureExtract:
         self.SplitByMonth()
 
         self.GetSingleFeature('Gender', self.GetArtistGender)
-        self.GetSingleFeature('Language', self.GetSongLanguage)
-        self.GetSingleFeature('published_days', self.GetPublishedDays)
-        self.GetSingleFeature('artist_id', self.GetArtistID)
-        self.GetSingleFeature('song_init_plays', self.GetSongInitPlays)
-
-        self.GetSingleFeature('total_plays_for_one_song_all', self.GetTotalPlaysForFeature)
+#        self.GetSingleFeature('Language', self.GetSongLanguage)
+#        self.GetSingleFeature('published_days', self.GetPublishedDays)
+#        self.GetSingleFeature('artist_id', self.GetArtistID)
+#        self.GetSingleFeature('song_init_plays', self.GetSongInitPlays)
+#
+#        self.GetSingleFeature('total_plays_for_one_song_all', self.GetTotalPlaysForFeature)
 
 # HourInterval
 #        HourInterval={'Morning':range(7,12),'Noon':range(12,15),'Afternoon':range(15,19),'Evening':range(19,25),'Midnight':range(1,7)}
 
 #        for when,interval in HourInterval.items():
 #            self.GetSingleFeature('total_plays_for_one_song_all_for_'+when, self.GetTotalPlaysForFeatureInHourInterval, condition_hour=interval)
-        for consecutive_days in self.consecutive_recent_:
-            self.GetSingleFeature('total_plays_for_one_song_recent_'+str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days=consecutive_days)
+#        for consecutive_days in self.consecutive_recent_:
+#            self.GetSingleFeature('total_plays_for_one_song_recent_'+str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days=consecutive_days)
 #            for when,interval in HourInterval.items():
 #                self.GetSingleFeature('total_plays_for_one_song_recent_'+str(consecutive_days)+'_for_'+when, self.GetTotalPlaysForFeatureInHourInterval, consecutive_days=consecutive_days, condition_hour=interval)
 
 #todo median feature
-        for consecutive_days in xrange(1,31):
-            self.GetSingleFeature('temporary_total_plays_for_one_song_recent_'+str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days=consecutive_days)
-        for recent_days in [30, 14, 7, 3]:
-            self.GetMedianFeature(recent_days) 
+#        for consecutive_days in xrange(1,31):
+#            self.GetSingleFeature('temporary_total_plays_for_one_song_recent_'+str(consecutive_days), self.GetTotalPlaysForFeature, consecutive_days=consecutive_days)
+#        for recent_days in [30, 14, 7, 3]:
+#            self.GetMedianFeature(recent_days) 
 
 #        for hour in xrange(24) :
 #            self.GetSingleFeature('total_plays_for_one_song_all_for_hour_%d' % hour, self.GetTotalPlaysForFeatureInSpecificHour, condition_hour = hour)
@@ -593,18 +598,18 @@ class FeatureExtract:
 #            for hour in xrange(24) :
 #                self.GetSingleFeature('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_hour_%d' % hour, self.GetTotalPlaysForFeatureInSpecificHour, consecutive_days = consecutive_days, condition_hour = hour)
 
-        self.GetSingleFeature('is_collect', self.GetIsCollect)
-        self.GetSingleFeature('is_download', self.GetIsDownload)
+##        self.GetSingleFeature('is_collect', self.GetIsCollect)
+#         self.GetSingleFeature('is_download', self.GetIsDownload)
             
-        self.GetTotalPlaysForArtist('total_plays_for_artist_all' ,'total_plays_for_one_song_all', 'artist_id')
+##        self.GetTotalPlaysForArtist('total_plays_for_artist_all' ,'total_plays_for_one_song_all', 'artist_id')
         # get the plays of all artist, include the artist of the song
-        self.GetTotalPlaysForEveryArtist('total_plays_for_every_artist_all','total_plays_for_one_song_all','artist_id')
+#        self.GetTotalPlaysForEveryArtist('total_plays_for_every_artist_all','total_plays_for_one_song_all','artist_id')
         
 #        for when,interval in HourInterval.items():
 #            self.GetTotalPlaysForArtist('total_plays_for_artist_all_for_'+when, 'total_plays_for_one_song_all_for_'+when, 'artist_id')
         
-        for consecutive_days in self.consecutive_recent_:
-            self.GetTotalPlaysForArtist('total_plays_for_artist_recent_'+str(consecutive_days), 'total_plays_for_one_song_recent_' + str(consecutive_days), 'artist_id')
+#        for consecutive_days in self.consecutive_recent_:
+#            self.GetTotalPlaysForArtist('total_plays_for_artist_recent_'+str(consecutive_days), 'total_plays_for_one_song_recent_' + str(consecutive_days), 'artist_id')
 #            for when,interval in HourInterval.items():
 #                self.GetTotalPlaysForArtist('total_plays_for_artist_recent_'+str(consecutive_days)+'_for_'+when, 'total_plays_for_one_song_recent_' + str(consecutive_days)+'_for_'+when, 'artist_id')
 
@@ -615,14 +620,14 @@ class FeatureExtract:
 #            for hour in xrange(24) :
 #                self.GetTotalPlaysForArtist('total_plays_for_artist_recent_' + str(consecutive_days) + '_for_hour_%d' % hour ,'total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_hour_%d' % hour, 'artist_id')
 
-        self.GetCombinationFeature('total_plays_for_one_song_all', 'total_plays_for_artist_all', 'div') 
+##        self.GetCombinationFeature('total_plays_for_one_song_all', 'total_plays_for_artist_all', 'div') 
 #        for when,interval in HourInterval.items() :
 #            self.GetCombinationFeature('total_plays_for_artist_all_for_'+when, 'total_plays_for_artist_all', 'div') 
 #            self.GetCombinationFeature('total_plays_for_one_song_all_for_'+when, 'total_plays_for_artist_all_for_'+when, 'div') 
 #            self.GetCombinationFeature('total_plays_for_one_song_all_for_'+when, 'total_plays_for_one_song_all', 'div') 
             
-        for consecutive_days in self.consecutive_recent_:
-            self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) ,'total_plays_for_artist_recent_' + str(consecutive_days), 'div')
+#        for consecutive_days in self.consecutive_recent_:
+#            self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) ,'total_plays_for_artist_recent_' + str(consecutive_days), 'div')
 #            for when,interval in HourInterval.items() :
 #                self.GetCombinationFeature('total_plays_for_artist_recent_' + str(consecutive_days) + '_for_' + when,'total_plays_for_artist_recent_' + str(consecutive_days) , 'div')
 #                self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_' + when,'total_plays_for_artist_recent_' + str(consecutive_days) + '_for_' + when, 'div')
@@ -633,7 +638,7 @@ class FeatureExtract:
 #            self.GetCombinationFeature('total_plays_for_one_song_all_for_hour_%d' % hour, 'total_plays_for_artist_all_for_hour_%d' % hour, 'div') 
 #            self.GetCombinationFeature('total_plays_for_one_song_all_for_hour_%d' % hour, 'total_plays_for_one_song_all', 'div') 
             
-#        for consecutive_days in self.consecutive_recent_:
+##        for consecutive_days in self.consecutive_recent_:
 #            self.GetCombinationFeature('total_plays_for_one_song_recent_' + str(consecutive_days) ,'total_plays_for_artist_recent_' + str(consecutive_days), 'div')
 #            for hour in xrange(24) :
 #                self.GetCombinationFeature('total_plays_for_artist_recent_' + str(consecutive_days) + '_for_hour_%d' % hour,'total_plays_for_artist_recent_' + str(consecutive_days) , 'div')
@@ -643,10 +648,10 @@ class FeatureExtract:
         self.GetCovarianceFeature()
         for idx in xrange(len(self.artist_list_)) :
             self.GetCombinationFeature('CovarianceBetweenSongAndArtist_%d' % idx, 'total_plays_for_every_artist_all_%d' % idx, 'mul') 
- 
-        self.GetLabel('label_plays', self.GetTotalPlaysForLabel)
-        self.GetLabel('label_weekday', self.GetWeekday)
-        self.GetLabel('label_day', self.GetDay)
+
+#        self.GetLabel('label_plays', self.GetTotalPlaysForLabel)
+#        self.GetLabel('label_weekday', self.GetWeekday)
+#        self.GetLabel('label_day', self.GetDay)
 
         del self.data_
         del self.month_data_

@@ -47,18 +47,18 @@ class Solver:
         if self.type_ == "unit" :
             self.songs_ = pd.read_csv(ROOT + '/data/mars_tianchi_songs_tiny.csv', header = None)
             self.action_ = pd.read_csv(ROOT + '/data/mars_tianchi_user_actions_tiny.csv', header = None)
-            self.label_ = pd.read_csv(ROOT + '/data/label_tiny.csv', header = None)
+#            self.label_ = pd.read_csv(ROOT + '/data/label_tiny.csv', header = None)
         elif self.type_ == 'full' :
             self.songs_ = pd.read_csv(ROOT + '/data/mars_tianchi_songs.csv', header = None)
             self.action_ = pd.read_csv(ROOT + '/data/mars_tianchi_user_actions.csv', header = None)
-            self.label_ = pd.read_csv(ROOT + '/data/label.csv', header = None)
+#            self.label_ = pd.read_csv(ROOT + '/data/label.csv', header = None)
         else:
             logging.error('Invalid type of data set, please choose unit or full')
             exit (1)
 
         self.songs_.columns = ['song_id', 'artist_id', 'publish_time', 'song_init_plays', 'Language', 'Gender']
         self.action_.columns = ['user_id', 'song_id', 'gmt_create', 'action_type', 'Ds']
-        self.label_.columns = ['artist_id', 'Plays', 'Ds']
+#        self.label_.columns = ['artist_id', 'Plays', 'Ds']
         self.song_id_set_ = self.songs_.song_id.values.tolist().sort()
         self.artist_list_ = sorted(set(self.songs_['artist_id'])) 
 
@@ -108,8 +108,8 @@ class Solver:
                 targetdate.append('2015%02d%02d' % (month, day))
         for artist, group in artist_group.items() :
             artist_data = self.data_.loc[group]
-            # using_data = self.ExtractMedium(artist_data)
-            using_data = self.Regression(artist_data)
+            using_data = self.ExtractMedium(artist_data)
+            #using_data = self.Regression(artist_data)
 
             for i in xrange(len(targetdate)) :
                 print artist + ',' + str(using_data[i % len(using_data)]) + ',' + targetdate[i] 

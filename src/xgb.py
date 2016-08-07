@@ -34,6 +34,12 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
     transform_type: 0: no transform, 1: ratiolize predict, 2: loglize predict
     shuffle: every shuffle number, shuffle the train data
     """
+    print train_x.shape
+    print validation_x.shape
+    print test_x.shape
+    for i in xrange(train_x.shape[1]):
+        print feature_names[i]
+
 #normalize feature
 #    all_x=np.vstack([train_x, validation_x, test_x])
 #    mean_x=np.mean(all_x, axis=0)
@@ -65,22 +71,25 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
 
     logging.info('start training the xgboost model')
     params = {
-        'eta' : 0.03,
+        'eta' : 0.06,
         'silent': 1,
         'objective' : 'reg:linear',
-        'max_depth' : 7,
-        'seed' : 1000000007,
-        'gamma': 0,  # default 0, minimum loss reduction required to partition
+        'max_depth' : 11,
+        'seed' : 97,
+        'gamma': 0.1,  # default 0, minimum loss reduction required to partition
         'min_child_weight':1000, # default 1, minimun number of instances in each node
-        'alpha':0, # default 0, L1 norm
+        'alpha':0.1, # default 0, L1 norm
         'lambda':1, # default 1, L2 norm
+        'colsmaple_bytree': 0.9,
+        'colsample_bylevel': 0.9,
     }
 
     watchlist=[(dtrain,'train'),(dvalidation,'validation')]
 
-    max_num_round=300
+    max_num_round=5
     best_num_round=0
-    best_val=float('-Inf')
+#need to be -inf, if want to monitor validation final_score
+    best_val=float('Inf')
     curr_round=0
     curr_val=0
     history_train_val=[]
@@ -99,12 +108,18 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
 #detransform to plays
         predict=Convert2Plays(predict, transform_type)
         predict=HandlePredict(predict.tolist(), validation_song_id)
-        curr_val=evaluate.evaluate(predict, validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
-        history_validation_val.append(curr_val)
+#        curr_val, _=evaluate.evaluate(predict, validation_y.tolist(), validation_artist_id, validation_month, validation_label_day)
+#        history_validation_val.append(curr_val)
         # train_val is rmse, not final score
         history_train_val.append(evals_result['train']['rmse'][-1])
-        logging.info('the current score is %.10f' % curr_val)
-        if curr_val > best_val:
+#monitor validation regression error instead of final_score, comment out below code if want to monitor score
+        curr_val=float(evals_result['validation']['rmse'][-1])
+        history_validation_val.append(float(curr_val))
+
+        logging.info('the current score is %.10f' % float(curr_val))
+
+#monitor validation score need to be >
+        if curr_val < best_val:
             best_num_round=curr_round
             best_val=curr_val
             bst.save_model(filepath +'/model/xgboost.model')
@@ -114,7 +129,7 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
             dtrain=xgb.DMatrix(train_x[indices,:], label=Transform(train_y[indices], transform_type), feature_names=feature_names)
             logging.info('shuffle')
 
-    dtrain=xgb.DMatrix(train_x, label=Transform(train_y, transform_type), feature_names=feature_names)
+#    dtrain=xgb.DMatrix(train_x, label=Transform(train_y, transform_type), feature_names=feature_names)
     bst=xgb.Booster(model_file=filepath +'/model/xgboost.model')
     predict = bst.predict(dvalidation)
 #detransform to plays
@@ -131,9 +146,9 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
         logging.info('the loss in Training set is %.4f' % mean_squared_error(train_y, Convert2Plays(bst.predict(dtrain), transform_type)))
         logging.info('the loss in Validation_set is %.4f' % mean_squared_error(validation_y, Convert2Plays(bst.predict(dvalidation), transform_type)))
 
-        plt.figure(figsize=(12, 6))
+#        plt.figure(figsize=(12, 6))
         # Plot feature importance
-        plt.subplot(1, 2, 1)
+#        plt.subplot(1, 2, 1)
         if (feature_names) == 0:
             feature_names = [str(i + 1) for i in xrange(validation_x.shape[0])]
         feature_names = np.array(feature_names)
@@ -142,33 +157,34 @@ def xgboost_solver(train_x, train_y, validation_x, test_x, filepath, validation_
         feature_importance = 100.0 * (feature_importance / feature_importance.max())
         sorted_idx = np.argsort(feature_importance)
         pos = np.arange(sorted_idx.shape[0]) + .5
-        plt.barh(pos, feature_importance[sorted_idx], align='center')
-        plt.yticks(pos, feature_names[sorted_idx])
-        plt.xlabel('Relative Importance')
-        plt.title('Variable Importance')
+#        plt.barh(pos, feature_importance[sorted_idx], align='center')
+#        plt.yticks(pos, feature_names[sorted_idx])
+#        plt.xlabel('Relative Importance')
+#        plt.title('Variable Importance')
 
 
         # Plot training deviance
-        plt.subplot(1, 2, 2)
+#        plt.subplot(1, 2, 2)
         validation_score = evals_result['validation']['rmse']
         train_score = evals_result['train']['rmse']
-        plt.title('Deviance')
-        plt.plot(np.arange(max_num_round/interval) + 1, history_train_val, 'b-',
-                          label='Training Set Deviance')
-        plt.plot(np.arange(max_num_round/interval) + 1, history_validation_val, 'r-',
-                          label='Validation Set Deviance')
-        plt.legend(loc='upper right')
-        plt.xlabel('Boosting Iterations')
-        plt.ylabel('Deviance')
+#        plt.title('Deviance')
+#        plt.plot(np.arange(max_num_round/interval) + 1, history_train_val, 'b-',
+#                          label='Training Set Deviance')
+#        plt.plot(np.arange(max_num_round/interval) + 1, history_validation_val, 'r-',
+#                          label='Validation Set Deviance')
+#        plt.legend(loc='upper right')
+#        plt.xlabel('Boosting Iterations')
+#        plt.ylabel('Deviance')
 
-        plt.savefig(filepath + '/statistics.jpg')
+#        plt.savefig(filepath + '/statistics.jpg')
 
-        print "not zero prediction : %d " % sum( [ i!=0 for i in Convert2Plays(predict, transform_type).astype(int).tolist()] )
-        print "total number of train data : %d" % train_y.shape[0]
-        print "not zero label train data : %d" % sum(train_y!=0)
-        print "total number of validation data : %d" % validation_y.shape[0]
-        print "not zero label validation data : %d" % sum(validation_y!=0)
+#        print "not zero prediction : %d " % sum( [ i!=0 for i in Convert2Plays(predict, transform_type).astype(int).tolist()] )
+#        print "total number of train data : %d" % train_y.shape[0]
+#        print "not zero label train data : %d" % sum(train_y!=0)
+#        print "total number of validation data : %d" % validation_y.shape[0]
+#        print "not zero label validation data : %d" % sum(validation_y!=0)
         print "best_num_round : %d" % best_num_round
+        print 'best score: %.10f' % best_val
 
     return predict, Convert2Plays(bst.predict(dtest), transform_type)
 
@@ -181,7 +197,7 @@ if __name__ == "__main__":
         sys.exit(2)
 
     n_jobs = 1
-    _type = 'unit'
+    _type = 'full'
     for o, a in opts:
         if o in ('-h', '--help') :
             usage()

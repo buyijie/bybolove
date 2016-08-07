@@ -17,7 +17,7 @@ def binary_feature (data, feature) :
         $1: the data after handlering
     """
     logging.info ('convert to binary variable for feature: %s' % feature)
-    data = pd.concat ([data , pd.get_dummies (data[feature]).rename (columns = lambda x : str (feature) + "_" + str (x))] , axis = 1)
+    data = pd.concat ([data , pd.get_dummies (data[feature], drop_first=True).rename (columns = lambda x : str (feature) + "_" + str (x))] , axis = 1)
     data.drop(feature, axis = 1, inplace = True)
     return data
 

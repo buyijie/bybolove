@@ -250,29 +250,29 @@ class FeatureMerge :
         for idx in xrange(len(self.artist_list_)) :
             feature_list.append('CovarianceBetweenSongAndArtist_%d_mul_total_plays_for_every_artist_all_%d' % (idx, idx))
         
-        HourInterval={'Morning':range(7,12),'Noon':range(12,15),'Afternoon':range(15,19),'Evening':range(19,25),'Midnight':range(1,7)}
+#        HourInterval={'Morning':range(7,12),'Noon':range(12,15),'Afternoon':range(15,19),'Evening':range(19,25),'Midnight':range(1,7)}
         
-        for when,interval in HourInterval.items() :
-            feature_list.append('total_plays_for_one_song_all_for_'+when)
-            feature_list.append('total_plays_for_one_song_all_for_'+when+'_div_total_plays_for_one_song_all')
+#        for when,interval in HourInterval.items() :
+#            feature_list.append('total_plays_for_one_song_all_for_'+when)
+#            feature_list.append('total_plays_for_one_song_all_for_'+when+'_div_total_plays_for_one_song_all')
 
         feature_list.append('median_plays_for_one_song_recent_30')
         for consecutive_days in self.consecutive_recent_ :
             feature_list.append('total_plays_for_one_song_recent_' + str(consecutive_days))
             feature_list.append('median_plays_for_one_song_recent_'+str(consecutive_days))
-            for when,interval in HourInterval.items() :
-                feature_list.append('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_' + when)
-                feature_list.append('total_plays_for_one_song_recent_'+str(consecutive_days)+'_for_'+when+'_div_total_plays_for_one_song_recent_'+str(consecutive_days))
-        for when,interval in HourInterval.items() :
-            feature_list.append('total_plays_for_artist_all_for_' + when)
-            feature_list.append('total_plays_for_artist_all_for_'+when+'_div_total_plays_for_artist_all')
-            feature_list.append('total_plays_for_one_song_all_for_'+when+'_div_total_plays_for_artist_all_for_'+when)
+#            for when,interval in HourInterval.items() :
+#                feature_list.append('total_plays_for_one_song_recent_' + str(consecutive_days) + '_for_' + when)
+#                feature_list.append('total_plays_for_one_song_recent_'+str(consecutive_days)+'_for_'+when+'_div_total_plays_for_one_song_recent_'+str(consecutive_days))
+#        for when,interval in HourInterval.items() :
+#            feature_list.append('total_plays_for_artist_all_for_' + when)
+#            feature_list.append('total_plays_for_artist_all_for_'+when+'_div_total_plays_for_artist_all')
+#            feature_list.append('total_plays_for_one_song_all_for_'+when+'_div_total_plays_for_artist_all_for_'+when)
         for consecutive_days in self.consecutive_recent_ :
             feature_list.append('total_plays_for_artist_recent_' + str(consecutive_days))
-            for when,interval in HourInterval.items() :
-                feature_list.append('total_plays_for_artist_recent_'+str(consecutive_days)+'_for_'+when)
-                feature_list.append('total_plays_for_artist_recent_'+str(consecutive_days)+'_for_'+when+'_div_total_plays_for_artist_recent_'+str(consecutive_days))
-                feature_list.append('total_plays_for_one_song_recent_'+str(consecutive_days)+'_for_'+when+'_div_total_plays_for_artist_recent_'+str(consecutive_days)+'_for_'+when)     
+#            for when,interval in HourInterval.items() :
+#                feature_list.append('total_plays_for_artist_recent_'+str(consecutive_days)+'_for_'+when)
+#                feature_list.append('total_plays_for_artist_recent_'+str(consecutive_days)+'_for_'+when+'_div_total_plays_for_artist_recent_'+str(consecutive_days))
+#                feature_list.append('total_plays_for_one_song_recent_'+str(consecutive_days)+'_for_'+when+'_div_total_plays_for_artist_recent_'+str(consecutive_days)+'_for_'+when)     
 #        for hour in xrange(24) :
 #            feature_list.append('total_plays_for_one_song_all_for_hour_%d' % hour)
 #            feature_list.append('total_plays_for_one_song_all_for_hour_%d_div_total_plays_for_one_song_all' % hour)
@@ -373,9 +373,9 @@ class FeatureMerge :
 
         logging.info('the final data size is (%d %d)' % self.final_data_.shape)
 
-        training = sum(cnt_month[:-2])
-        validation = cnt_month[-2]
-        testing = cnt_month[-1]
+        training = sum(cnt_month[:-3])
+        validation = cnt_month[-3]
+        testing = cnt_month[-2]
         path = '_' + self.type_ + '_' + '_'.join(map(str, self.consecutive_recent_)) + '_' + str(self.gap_month_) + '.csv'
 
         self.final_data_[:training].to_csv(ROOT + '/data/final_data_training' + path, index = False)

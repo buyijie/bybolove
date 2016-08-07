@@ -100,6 +100,59 @@ def plot_artist_daily_error(predict, label, artist, month, day, filepath) :
         plt.plot(np.arange(len(_error_list))+1, _error_list, 'b-', label='std error')
         plt.savefig(filepath+'/'+_artist+'.jpg')
 
+def plot_all_daily_error(predict, label, artist, month, day, filepath) :
+    """
+    """
+    logging.info('Start plot daily average artist error')
+
+    if len(predict) != len(label):
+        logging.error('the number of predict is not match with label')
+        exit(1)
+
+    artist_day_predict = {}
+    artist_day_label = {}
+    date_set = set()
+    for row in xrange(len(predict)) :
+        artist_day = artist[row] + '#' + str(month[row]) + ('#%02d' % int(day[row]))
+        date_set.add(str(int(month[row])) + ('#%02d' % int(day[row])))
+        artist_day_predict.setdefault(artist_day, 0)
+        artist_day_label.setdefault(artist_day, 0)
+
+# predict and label -1
+        artist_day_predict[artist_day] += predict[row]-1
+        artist_day_label[artist_day] += label[row]-1
+
+    artist_daily_error_list={}
+    artist_all={}
+    for key in artist_day_predict.keys() :
+        _artist, _month, _day = key.split('#')
+        _day=str(_month)+str(_day)
+        error = ((artist_day_predict[key] - artist_day_label[key] + 1) / (artist_day_label[key] + 1)) ** 2
+        artist_daily_error_list.setdefault(_artist, [])
+        artist_daily_error_list[_artist].append((_day, error))
+
+        artist_all.setdefault(_artist, 0)
+        artist_all[_artist]+=artist_day_label[key]
+
+    artist_list=sorted(artist_daily_error_list.keys())
+    error_all_list=np.zeros(len(artist_daily_error_list[artist_list[0]]))
+    print '1'
+    print error_all_list
+
+    for _artist in artist_list:
+        _day_error_list=sorted(artist_daily_error_list[_artist])
+        print _day_error_list
+        _error_list=np.array([_day_error[1] for _day_error in _day_error_list])
+        print _error_list
+        error_all_list+=_error_list
+        print error_all_list
+
+    plt.figure(figsize=(12,6))
+    plt.xlabel(str(month[0])) 
+    plt.title('all_artist_average_daily_mse')
+    plt.plot(np.arange(len(error_all_list))+1, error_all_list/len(artist_list), 'b-', label='std error')
+    plt.savefig(filepath+'/'+'all_artist_average_daily_mse'+'.jpg')
+
 def output(name, predict, artist, month, day) :
     """
     """
